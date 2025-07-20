@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>간단 채팅 테스트</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/webstomp-client@1/dist/webstomp.min.js"></script>
+</head>
+<body>
+    <div id="connect-form">
+        <input type="text" id="username" placeholder="사용자명">
+        <input type="text" id="roomId" placeholder="방ID">
+        <button onclick="connect()">연결</button>
+    </div>
+    
+    <div id="chat-form" style="display:none;">
+        <div id="messages" style="height:200px; border:1px solid; overflow-y:scroll;"></div>
+        <input type="text" id="messageInput" placeholder="메시지">
+        <button onclick="sendMessage()">전송</button>
+        <button onclick="disconnect()">나가기</button>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let username = '';
+        let roomId = '';
+
+        function connect() {
+            username = document.getElementById('username').value;
+            roomId = document.getElementById('roomId').value;
+            
+            if (!username || !roomId) {
+                alert('사용자명과 방ID를 입력하세요');
+                return;
+            }
+
+            console.log('SockJS type:', typeof SockJS);
+            console.log('webstomp type:', typeof webstomp);
+
+            const socket = new SockJS('/ws');
+            stompClient = webstomp.over(socket);
+            
+            stompClient.connect({}, function(frame) {
+                console.log('Connected: ' + frame);
+                
+                stompClient.subscribe('/topic/chat.' + roomId, function(message) {
+                    const msg = JSON.parse(message.body);
+                    showMessage(msg);
+                });
+
+                // 입장 메시지
+                stompClient.send('/app/chat.join', {}, JSON.stringify({
+                    senderId: username,
+                    senderName: username,
+                    roomId: roomId,
+                    type: 'JOIN'
+                }));
+
+                document.getElementById('connect-form').style.display = 'none';
+                document.getElementById('chat-form').style.display = 'block';
+            });
+        }
+
+        function sendMessage() {
+            const content = document.getElementById('messageInput').value;
+            if (content && stompClient) {
+                stompClient.send('/app/chat.send', {}, JSON.stringify({
+                    senderId: username,
+                    senderName: username,
+                    roomId: roomId,
+                    content: content,
+                    type: 'CHAT'
+                }));
+                document.getElementById('messageInput').value = '';
+            }
+        }
+
+        function disconnect() {
+            if (stompClient) {
+                stompClient.disconnect();
+            }
+            document.getElementById('connect-form').style.display = 'block';
+            document.getElementById('chat-form').style.display = 'none';
+            document.getElementById('messages').innerHTML = '';
+        }
+
+        function showMessage(message) {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            if (message.type === 'CHAT') {
+                div.innerHTML = '<b>' + message.senderName + ':</b> ' + message.content;
+            } else {
+                div.innerHTML = '<i>' + message.content + '</i>';
+            }
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
