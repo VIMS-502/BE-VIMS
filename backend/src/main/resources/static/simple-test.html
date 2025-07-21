@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chat Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .messages { height: 300px; border: 1px solid #ccc; overflow-y: auto; padding: 10px; background: #f9f9f9; }
+        .message { margin: 5px 0; padding: 8px; border-radius: 5px; }
+        .message.own { background: #007bff; color: white; text-align: right; }
+        .message.other { background: white; border: 1px solid #ddd; }
+        .message.system { background: #ffc107; text-align: center; }
+        .input-area { margin: 10px 0; }
+        .input-area input { width: 70%; padding: 10px; }
+        .input-area button { padding: 10px 15px; margin-left: 10px; }
+        .form-group { margin: 10px 0; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group input { width: 200px; padding: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 Simple Chat Test</h1>
+        
+        <div id="status" class="status disconnected">❌ 연결되지 않음</div>
+        
+        <div class="form-group">
+            <label>사용자 ID:</label>
+            <input type="text" id="userId" value="user1" placeholder="user1">
+        </div>
+        
+        <div class="form-group">
+            <label>사용자 이름:</label>
+            <input type="text" id="userName" value="김철수" placeholder="김철수">
+        </div>
+        
+        <div class="form-group">
+            <label>강의실 ID:</label>
+            <input type="text" id="lectureId" value="test-room" placeholder="test-room">
+        </div>
+        
+        <button onclick="connect()">연결</button>
+        <button onclick="joinLecture()">강의실 입장</button>
+        <button onclick="disconnect()">연결 해제</button>
+        
+        <div id="messages" class="messages">
+            <div class="message system">채팅 테스트 준비됨. 연결 버튼을 클릭하세요.</div>
+        </div>
+        
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="메시지를 입력하세요..." disabled onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()" disabled id="sendBtn">전송</button>
+        </div>
+        
+        <h3>📋 테스트 방법</h3>
+        <ol>
+            <li>사용자 정보 입력</li>
+            <li>"연결" 버튼 클릭</li>
+            <li>"강의실 입장" 버튼 클릭</li>
+            <li>메시지 입력 후 전송</li>
+            <li>여러 브라우저 탭으로 다른 사용자 테스트</li>
+        </ol>
+    </div>
+
+    <script>
+        let currentUserId = null;
+        let currentUserName = null;
+        let currentLectureId = null;
+        let connected = false;
+        
+        function connect() {
+            currentUserId = document.getElementById('userId').value;
+            currentUserName = document.getElementById('userName').value;
+            
+            if (!currentUserId || !currentUserName) {
+                alert('사용자 ID와 이름을 입력해주세요.');
+                return;
+            }
+            
+            // WebSocket 연결 시뮬레이션
+            setTimeout(() => {
+                connected = true;
+                updateStatus('✅ 연결됨');
+                addMessage('WebSocket에 연결되었습니다.', 'system');
+            }, 1000);
+        }
+        
+        function disconnect() {
+            connected = false;
+            updateStatus('❌ 연결 끊김');
+            document.getElementById('messageInput').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            addMessage('연결이 해제되었습니다.', 'system');
+        }
+        
+        function joinLecture() {
+            if (!connected) {
+                alert('먼저 연결해주세요.');
+                return;
+            }
+            
+            currentLectureId = document.getElementById('lectureId').value;
+            if (!currentLectureId) {
+                alert('강의실 ID를 입력해주세요.');
+                return;
+            }
+            
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            
+            addMessage(`${currentUserName}님이 ${currentLectureId} 강의실에 입장했습니다.`, 'system');
+            addMessage('이제 메시지를 보낼 수 있습니다!', 'system');
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // 내 메시지 표시
+            addMessage(`${currentUserName}: ${message}`, 'own');
+            
+            // 실제 구현에서는 WebSocket으로 전송
+            // stompClient.send('/app/lecture.send', {}, JSON.stringify({...}));
+            
+            input.value = '';
+            
+            // 테스트용 자동 응답 (실제로는 다른 사용자의 메시지)
+            setTimeout(() => {
+                if (Math.random() > 0.5) {
+                    addMessage('다른사용자: 안녕하세요!', 'other');
+                }
+            }, 1000 + Math.random() * 2000);
+        }
+        
+        function addMessage(content, type) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = content;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function updateStatus(text) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = text;
+            statusDiv.className = `status ${connected ? 'connected' : 'disconnected'}`;
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // REST API 테스트 함수들
+        async function testCreateLecture() {
+            try {
+                const response = await fetch('/api/lectures/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lectureName: '테스트 강의' })
+                });
+                const data = await response.json();
+                console.log('강의실 생성 결과:', data);
+                addMessage(`API 테스트: 강의실 생성됨 - ${data.lectureId}`, 'system');
+            } catch (error) {
+                console.error('API 테스트 실패:', error);
+                addMessage('API 테스트 실패: 서버가 실행중인지 확인하세요', 'system');
+            }
+        }
+        
+        async function testGetParticipants() {
+            const lectureId = document.getElementById('lectureId').value;
+            if (!lectureId) return;
+            
+            try {
+                const response = await fetch(`/api/lectures/${lectureId}/participants`);
+                const data = await response.json();
+                console.log('참여자 목록:', data);
+                addMessage(`API 테스트: 참여자 ${data.participantCount}명`, 'system');
+            } catch (error) {
+                console.error('API 테스트 실패:', error);
+                addMessage('API 테스트 실패: 서버가 실행중인지 확인하세요', 'system');
+            }
+        }
+        
+        // 페이지 로드 시 API 테스트
+        window.addEventListener('load', () => {
+            addMessage('페이지가 로드되었습니다. API 연결을 테스트합니다...', 'system');
+            testCreateLecture();
+            setTimeout(testGetParticipants, 2000);
+        });
+    </script>
+</body>
+</html>

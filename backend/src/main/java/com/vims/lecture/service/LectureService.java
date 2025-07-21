@@ -1,7 +1,8 @@
 package com.vims.lecture.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,9 +12,10 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class LectureService {
 
+    private static final Logger log = LoggerFactory.getLogger(LectureService.class);
+    
     // 강의실별 참여자 관리
     private final Map<String, Set<String>> lectureParticipants = new ConcurrentHashMap<>();
     

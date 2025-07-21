@@ -33,4 +33,15 @@ public class DirectMessage {
             return "dm_" + receiverId + "_" + senderId;
         }
     }
+    
+    // Explicit getters and setters (in case Lombok doesn't work)
+    public String getSenderId() { return senderId; }
+    public String getReceiverId() { return receiverId; }
+    public String getContent() { return content; }
+    public String getSenderName() { return senderName; }
+    public String getReceiverName() { return receiverName; }
+    
+    public void setId(String id) { this.id = id; }
+    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+    public void setType(MessageType type) { this.type = type; }
 }

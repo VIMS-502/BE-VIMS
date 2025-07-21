@@ -30,7 +30,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSoc
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(new SignalingHandler(), "/signaling")
-                .setAllowedOrigins("*");
+        // TODO: Implement SignalingHandler for WebRTC signaling
+        // registry.addHandler(new SignalingHandler(), "/signaling")
+        //         .setAllowedOrigins("*");
     }
 }

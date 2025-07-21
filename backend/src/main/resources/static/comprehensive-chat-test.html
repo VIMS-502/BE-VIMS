@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIMS - 종합 채팅 테스트</title>
+    <script src="sockjs.min.js"></script>
+    <script src="stomp.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .main-content {
+            display: flex;
+            height: 600px;
+        }
+        .sidebar {
+            width: 250px;
+            background: #34495e;
+            color: white;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-header {
+            background: #ecf0f1;
+            padding: 15px;
+            border-bottom: 1px solid #bdc3c7;
+            font-weight: bold;
+        }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #fafafa;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        .message.own {
+            background: #3498db;
+            color: white;
+            margin-left: auto;
+        }
+        .message.other {
+            background: white;
+            border: 1px solid #ddd;
+        }
+        .message.system {
+            background: #f39c12;
+            color: white;
+            text-align: center;
+            margin: 5px auto;
+            max-width: 60%;
+        }
+        .message.announcement {
+            background: #e74c3c;
+            color: white;
+            border: 2px solid #c0392b;
+            font-weight: bold;
+        }
+        .input-area {
+            padding: 15px;
+            border-top: 1px solid #bdc3c7;
+            background: white;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        .input-group input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .control-panel {
+            margin-bottom: 20px;
+        }
+        .control-panel h3 {
+            margin-top: 0;
+            color: #ecf0f1;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #bdc3c7;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #7f8c8d;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .participants {
+            margin-top: 20px;
+        }
+        .participant {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            margin: 5px 0;
+            background: #2c3e50;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .participant:hover {
+            background: #34495e;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.connected {
+            background: #d5eda6;
+            color: #27ae60;
+        }
+        .status.disconnected {
+            background: #f5b7b1;
+            color: #e74c3c;
+        }
+        .dm-window {
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            width: 300px;
+            height: 400px;
+            background: white;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: none;
+            flex-direction: column;
+        }
+        .dm-header {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dm-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .dm-input {
+            padding: 10px;
+            border-top: 1px solid #ddd;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 VIMS - 종합 채팅 테스트</h1>
+            <p>강의실 생성, 채팅, DM 테스트</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- 사이드바: 컨트롤 패널 -->
+            <div class="sidebar">
+                <!-- 연결 상태 -->
+                <div id="connectionStatus" class="status disconnected">
+                    🔴 연결 끊김
+                </div>
+                
+                <!-- 사용자 설정 -->
+                <div class="control-panel">
+                    <h3>👤 사용자 설정</h3>
+                    <div class="form-group">
+                        <label>사용자 ID</label>
+                        <input type="text" id="userId" placeholder="123" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label>사용자 이름</label>
+                        <input type="text" id="userName" placeholder="김철수" value="김철수">
+                    </div>
+                    <div class="form-group">
+                        <label>역할</label>
+                        <select id="userRole">
+                            <option value="STUDENT">학생</option>
+                            <option value="INSTRUCTOR">강사</option>
+                            <option value="TA">조교</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- 강의실 관리 -->
+                <div class="control-panel">
+                    <h3>🏫 강의실 관리</h3>
+                    <div class="form-group">
+                        <label>강의실 이름</label>
+                        <input type="text" id="lectureName" placeholder="테스트 강의" value="테스트 강의">
+                    </div>
+                    <button class="btn btn-success" onclick="createLecture()">강의실 생성</button>
+                    
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>입장할 강의실 ID</label>
+                        <input type="text" id="joinLectureId" placeholder="1" value="1">
+                    </div>
+                    <button class="btn btn-primary" onclick="joinLecture()">강의실 입장</button>
+                    <button class="btn btn-warning" onclick="leaveLecture()">강의실 퇴장</button>
+                </div>
+                
+                <!-- 참여자 목록 -->
+                <div class="participants">
+                    <h3>👥 참여자 목록</h3>
+                    <div id="participantsList">
+                        <p style="color: #bdc3c7; font-size: 12px;">강의실에 입장해주세요</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 채팅 영역 -->
+            <div class="chat-area">
+                <div class="chat-header" id="chatHeader">
+                    💬 강의실을 선택해주세요
+                </div>
+                
+                <div class="messages" id="messages">
+                    <div class="message system">
+                        VIMS 채팅 시스템에 오신 것을 환영합니다! 🎉<br>
+                        1. 사용자 정보를 입력하세요<br>
+                        2. 강의실을 생성하거나 기존 강의실에 입장하세요<br>
+                        3. 채팅을 시작하세요!
+                    </div>
+                </div>
+                
+                <div class="input-area">
+                    <div class="input-group">
+                        <input type="text" id="messageInput" placeholder="메시지를 입력하세요..." disabled>
+                        <button class="btn btn-primary" onclick="sendMessage()" disabled id="sendBtn">전송</button>
+                        <button class="btn btn-warning" onclick="sendAnnouncement()" disabled id="announcementBtn">공지</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- DM 창 -->
+    <div id="dmWindow" class="dm-window">
+        <div class="dm-header">
+            <span id="dmPartnerName">DM</span>
+            <button class="close-btn" onclick="closeDM()">&times;</button>
+        </div>
+        <div id="dmMessages" class="dm-messages"></div>
+        <div class="dm-input">
+            <div class="input-group">
+                <input type="text" id="dmMessageInput" placeholder="DM을 입력하세요...">
+                <button class="btn btn-primary" onclick="sendDM()">전송</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let currentLectureId = null;
+        let currentUserId = null;
+        let currentUserName = null;
+        let currentDmPartner = null;
+        let participants = new Set();
+        
+        // WebSocket 연결
+        function connect() {
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            
+            // 디버그 모드 활성화
+            stompClient.debug = function(str) {
+                console.log('🔗 STOMP Debug: ' + str);
+            };
+            
+            stompClient.connect({}, function(frame) {
+                console.log('✅ WebSocket Connected: ' + frame);
+                console.log('🎯 Current user session info:', frame.headers);
+                updateConnectionStatus(true);
+                
+                // 연결 성공 메시지 추가
+                addMessage('🔗 WebSocket 연결 성공!', 'system');
+                
+                // 개인 알림 구독은 joinLecture에서 설정됨
+            }, function(error) {
+                console.log('❌ Connection error: ' + error);
+                updateConnectionStatus(false);
+            });
+        }
+        
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+            updateConnectionStatus(false);
+        }
+        
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            if (connected) {
+                status.className = 'status connected';
+                status.innerHTML = '🟢 연결됨';
+            } else {
+                status.className = 'status disconnected';
+                status.innerHTML = '🔴 연결 끊김';
+            }
+        }
+        
+        // 강의실 생성
+        async function createLecture() {
+            const lectureName = document.getElementById('lectureName').value;
+            
+            try {
+                const response = await fetch('/api/lectures/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        lectureName: lectureName
+                    })
+                });
+                
+                const data = await response.json();
+                document.getElementById('joinLectureId').value = data.lectureId;
+                addMessage(`강의실이 생성되었습니다: ${data.lectureName} (ID: ${data.lectureId})`, 'system');
+            } catch (error) {
+                console.error('강의실 생성 실패:', error);
+                addMessage('강의실 생성에 실패했습니다.', 'system');
+            }
+        }
+        
+        // 강의실 입장
+        function joinLecture() {
+            console.log('🔥 joinLecture function called');
+            
+            currentUserId = document.getElementById('userId').value;
+            currentUserName = document.getElementById('userName').value;
+            const lectureId = document.getElementById('joinLectureId').value;
+            const userRole = document.getElementById('userRole').value;
+            
+            console.log('🔥 Form values:', {currentUserId, currentUserName, lectureId, userRole});
+            
+            if (!currentUserId || !currentUserName || !lectureId) {
+                console.log('❌ Missing form values');
+                alert('사용자 정보와 강의실 ID를 모두 입력해주세요.');
+                return;
+            }
+            
+            console.log('🔥 Checking stompClient:', stompClient);
+            if (stompClient === null) {
+                console.log('🔥 stompClient is null, connecting...');
+                connect();
+                setTimeout(() => joinLecture(), 1000);
+                return;
+            }
+            
+            console.log('🔥 Setting currentLectureId to:', lectureId);
+            currentLectureId = lectureId;
+            
+            // 강의실 채팅 구독
+            stompClient.subscribe(`/topic/lecture.${lectureId}`, function(chatMessage) {
+                const message = JSON.parse(chatMessage.body);
+                displayLectureMessage(message);
+            });
+            
+            // 사용자별 개인 알림 구독 설정 (currentUserId가 설정된 후)
+            console.log('🔔 Setting up user-specific subscriptions for user:', currentUserId);
+            
+            // DM 알림 구독
+            const dmNotificationSub = stompClient.subscribe(`/user/queue/dm-notification`, function(notification) {
+                console.log('📨 DM notification received:', notification);
+                const data = JSON.parse(notification.body);
+                showDMNotification(data);
+            });
+            console.log('📨 DM notification subscription:', dmNotificationSub);
+            
+            // DM 히스토리 구독
+            const dmHistorySub = stompClient.subscribe(`/user/queue/dm-history`, function(historyMsg) {
+                console.log('📜 DM history received:', historyMsg);
+                const history = JSON.parse(historyMsg.body);
+                loadDMHistory(history);
+            });
+            console.log('📜 DM history subscription:', dmHistorySub);
+            
+            // 강의장 히스토리 구독 설정
+            console.log('🎓 Setting up lecture history subscription for user:', currentUserId);
+            const lectureHistorySub = stompClient.subscribe(`/user/queue/lecture-history`, function(historyMsg) {
+                console.log('🎓📜 Received lecture history message:', historyMsg);
+                console.log('🎓📜 Message body:', historyMsg.body);
+                console.log('🎓📜 Message headers:', historyMsg.headers);
+                try {
+                    const history = JSON.parse(historyMsg.body);
+                    console.log('🎓📜 Parsed history:', history);
+                    loadLectureHistory(history);
+                } catch (e) {
+                    console.error('❌ Error parsing lecture history:', e);
+                    console.error('❌ Raw message body:', historyMsg.body);
+                }
+            });
+            console.log('🎓📜 Lecture history subscription created:', lectureHistorySub);
+            
+            console.log('✅ User subscriptions set up complete');
+            
+            // 강의실 입장 메시지 전송
+            console.log('🚪 Joining lecture:', {
+                lectureId: lectureId,
+                userId: currentUserId,
+                userName: currentUserName,
+                userRole: userRole
+            });
+            
+            console.log('📤 Sending join message to /app/lecture.join');
+            stompClient.send('/app/lecture.join', {}, JSON.stringify({
+                lectureId: lectureId,
+                userId: currentUserId,
+                userName: currentUserName,
+                userRole: userRole
+            }));
+            console.log('✅ Join message sent successfully');
+            
+            addMessage(`🚪 ${currentUserName}님이 강의실에 입장 중...`, 'system');
+            
+            // UI 업데이트
+            document.getElementById('chatHeader').innerText = `💬 ${lectureId} 강의실`;
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            if (userRole === 'INSTRUCTOR' || userRole === 'TA') {
+                document.getElementById('announcementBtn').disabled = false;
+            }
+            
+            // 참여자 목록 주기적 업데이트
+            updateParticipants();
+            setInterval(updateParticipants, 5000);
+        }
+        
+        // 강의실 퇴장
+        function leaveLecture() {
+            if (!currentLectureId) return;
+            
+            stompClient.send('/app/lecture.leave', {}, JSON.stringify({
+                lectureId: currentLectureId,
+                userId: currentUserId,
+                userName: currentUserName
+            }));
+            
+            currentLectureId = null;
+            document.getElementById('chatHeader').innerText = '💬 강의실을 선택해주세요';
+            document.getElementById('messageInput').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            document.getElementById('announcementBtn').disabled = true;
+            document.getElementById('participantsList').innerHTML = '<p style="color: #bdc3c7; font-size: 12px;">강의실에 입장해주세요</p>';
+        }
+        
+        // 메시지 전송
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+            
+            if (!content || !currentLectureId) {
+                console.log('❌ Cannot send message:', {content, currentLectureId});
+                return;
+            }
+            
+            const messageData = {
+                lectureId: currentLectureId,
+                senderId: currentUserId,
+                senderName: currentUserName,
+                content: content,
+                type: 'CHAT'
+            };
+            
+            console.log('📤 Sending message:', messageData);
+            
+            stompClient.send('/app/lecture.send', {}, JSON.stringify(messageData));
+            
+            messageInput.value = '';
+            
+            // 전송 확인 메시지
+            addMessage(`📤 메시지 전송 중: "${content}"`, 'system');
+        }
+        
+        // 공지사항 전송
+        function sendAnnouncement() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+            
+            if (!content || !currentLectureId) return;
+            
+            stompClient.send('/app/lecture.send', {}, JSON.stringify({
+                lectureId: currentLectureId,
+                senderId: currentUserId,
+                senderName: currentUserName,
+                content: content,
+                type: 'ANNOUNCEMENT'
+            }));
+            
+            messageInput.value = '';
+        }
+        
+        // DM 전송
+        function sendDM() {
+            const dmInput = document.getElementById('dmMessageInput');
+            const content = dmInput.value.trim();
+            
+            if (!content || !currentDmPartner) return;
+            
+            stompClient.send('/app/dm.send', {}, JSON.stringify({
+                senderId: currentUserId,
+                senderName: currentUserName,
+                receiverId: currentDmPartner.userId,
+                receiverName: currentDmPartner.userName,
+                content: content
+            }));
+            
+            dmInput.value = '';
+        }
+        
+        // 강의실 메시지 표시 (큐잉 메커니즘 포함)
+        function displayLectureMessage(message) {
+            console.log('📨 Received message:', message);
+            
+            // 시스템 메시지 중 히스토리 트리거는 화면에 표시하지 않음
+            if (message.content && message.content.includes('HISTORY_LOAD_FOR_USER_')) {
+                console.log('🎯 History trigger message - not displaying');
+                return;
+            }
+            
+            // 히스토리 로딩 중이면 큐에 저장
+            if (historyLoading) {
+                console.log('⏳ History loading in progress, queuing message:', message);
+                messageQueue.push(message);
+                return;
+            }
+            
+            // 즉시 표시
+            displayLectureMessageInternal(message);
+        }
+        
+        // 실제 메시지 표시 로직 (내부 함수)
+        function displayLectureMessageInternal(message) {
+            let messageClass = 'other';
+            if (message.senderId === currentUserId) {
+                messageClass = 'own';
+            } else if (message.type === 'SYSTEM' || message.type === 'JOIN' || message.type === 'LEAVE') {
+                messageClass = 'system';
+            } else if (message.type === 'ANNOUNCEMENT') {
+                messageClass = 'announcement';
+            }
+            
+            addMessage(`${message.senderName}: ${message.content}`, messageClass);
+        }
+        
+        // 메시지 추가
+        function addMessage(content, type = 'other') {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.innerHTML = content;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // 참여자 목록 업데이트
+        async function updateParticipants() {
+            if (!currentLectureId) return;
+            
+            try {
+                const response = await fetch(`/api/lectures/${currentLectureId}/participants`);
+                const data = await response.json();
+                
+                participants.clear();
+                data.participants.forEach(userId => participants.add(userId));
+                
+                const participantsList = document.getElementById('participantsList');
+                participantsList.innerHTML = '';
+                
+                if (participants.size === 0) {
+                    participantsList.innerHTML = '<p style="color: #bdc3c7; font-size: 12px;">참여자가 없습니다</p>';
+                    return;
+                }
+                
+                participants.forEach(userId => {
+                    const participantDiv = document.createElement('div');
+                    participantDiv.className = 'participant';
+                    participantDiv.innerHTML = `
+                        <span>${userId}</span>
+                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="openDM('${userId}', '${userId}')">DM</button>
+                    `;
+                    participantsList.appendChild(participantDiv);
+                });
+                
+            } catch (error) {
+                console.error('참여자 목록 조회 실패:', error);
+            }
+        }
+        
+        // DM 창 열기
+        function openDM(userId, userName) {
+            if (userId === currentUserId) {
+                alert('자신에게는 DM을 보낼 수 없습니다.');
+                return;
+            }
+            
+            currentDmPartner = { userId, userName };
+            document.getElementById('dmPartnerName').innerText = `${userName}님과의 DM`;
+            document.getElementById('dmWindow').style.display = 'flex';
+            
+            // DM 방 구독
+            const roomId = generateDMRoomId(currentUserId, userId);
+            stompClient.subscribe(`/topic/dm.${roomId}`, function(dmMessage) {
+                const message = JSON.parse(dmMessage.body);
+                displayDMMessage(message);
+            });
+            
+            // DM 히스토리 요청
+            stompClient.send('/app/dm.join', {}, JSON.stringify({
+                userId1: currentUserId,
+                userId2: userId,
+                requesterId: currentUserId
+            }));
+        }
+        
+        // DM 창 닫기
+        function closeDM() {
+            document.getElementById('dmWindow').style.display = 'none';
+            document.getElementById('dmMessages').innerHTML = '';
+            currentDmPartner = null;
+        }
+        
+        // DM 메시지 표시
+        function displayDMMessage(message) {
+            const dmMessages = document.getElementById('dmMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${message.senderId === currentUserId ? 'own' : 'other'}`;
+            messageDiv.innerHTML = `${message.senderName}: ${message.content}`;
+            dmMessages.appendChild(messageDiv);
+            dmMessages.scrollTop = dmMessages.scrollHeight;
+        }
+        
+        // DM 알림 표시
+        function showDMNotification(data) {
+            if (confirm(`${data.senderName}님으로부터 새로운 메시지가 도착했습니다.\n"${data.preview}"\n\nDM 창을 열까요?`)) {
+                openDM(data.senderId, data.senderName);
+            }
+        }
+        
+        // DM 히스토리 로드
+        function loadDMHistory(history) {
+            const dmMessages = document.getElementById('dmMessages');
+            dmMessages.innerHTML = '';
+            
+            history.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.senderId.toString() === currentUserId ? 'own' : 'other'}`;
+                messageDiv.innerHTML = `${msg.senderId === currentUserId ? '나' : currentDmPartner.userName}: ${msg.content}`;
+                dmMessages.appendChild(messageDiv);
+            });
+            
+            dmMessages.scrollTop = dmMessages.scrollHeight;
+        }
+        
+        // REST API 히스토리 로드 함수 제거됨 - WebSocket만 사용
+
+        // 메시지 큐 (히스토리 로딩 중 받은 실시간 메시지 임시 저장)
+        let messageQueue = [];
+        let historyLoading = false;
+        
+        // 강의장 히스토리 로드
+        function loadLectureHistory(history) {
+            console.log('🔄 Loading lecture history:', history);
+            console.log('📊 History length:', history.length);
+            
+            // 히스토리 로딩 시작
+            historyLoading = true;
+            
+            if (!Array.isArray(history)) {
+                console.error('❌ History is not an array:', history);
+                historyLoading = false;
+                return;
+            }
+            
+            // 기존 메시지를 모두 지우고 히스토리부터 표시
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            
+            // 히스토리를 시간순으로 정렬 (오래된 것부터)
+            const sortedHistory = history.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            console.log('📅 Sorted history:', sortedHistory);
+            
+            sortedHistory.forEach((msg, index) => {
+                console.log(`💬 Processing message ${index}:`, msg);
+                let messageClass = 'other';
+                let displayName = `사용자${msg.senderId}`;
+                
+                if (msg.senderId.toString() === currentUserId) {
+                    messageClass = 'own';
+                    displayName = currentUserName || '나';
+                } else if (msg.messageType === 'SYSTEM') {
+                    messageClass = 'system';
+                    displayName = '';
+                } else if (msg.messageType === 'ANNOUNCEMENT') {
+                    messageClass = 'announcement';
+                    displayName = `[공지] 사용자${msg.senderId}`;
+                }
+                
+                const content = displayName ? `${displayName}: ${msg.content}` : msg.content;
+                console.log(`➡️ Adding message: ${content} (class: ${messageClass})`);
+                addMessage(content, messageClass);
+            });
+            
+            addMessage('--- 이전 메시지 로드 완료 ---', 'system');
+            
+            // 히스토리 로딩 완료 - 큐에 있던 실시간 메시지들 처리
+            historyLoading = false;
+            console.log(`📦 Processing ${messageQueue.length} queued messages`);
+            
+            messageQueue.forEach(queuedMessage => {
+                console.log('📤 Processing queued message:', queuedMessage);
+                displayLectureMessageInternal(queuedMessage);
+            });
+            messageQueue = []; // 큐 비우기
+            
+            console.log('✅ Lecture history loading completed');
+        }
+        
+        // DM 방 ID 생성 (DirectMessage.java와 동일한 로직)
+        function generateDMRoomId(userId1, userId2) {
+            return userId1 < userId2 ? `dm_${userId1}_${userId2}` : `dm_${userId2}_${userId1}`;
+        }
+        
+        // Enter 키 이벤트
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        document.getElementById('dmMessageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendDM();
+            }
+        });
+        
+        // 페이지 로드 시 자동 연결
+        window.addEventListener('load', function() {
+            // 초기 연결은 사용자가 수동으로 하도록 변경
+        });
+        
+        window.addEventListener('beforeunload', function() {
+            if (currentLectureId) {
+                leaveLecture();
+            }
+            disconnect();
+        });
+    </script>
+</body>
+</html>
