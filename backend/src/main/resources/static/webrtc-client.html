@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Test</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+<h1>WebRTC 화상통화 테스트</h1>
+
+<div>
+    <video id="localVideo" width="300" height="200" autoplay muted></video>
+    <video id="remoteVideo" width="300" height="200" autoplay></video>
+</div>
+
+<div>
+    <button onclick="startCall()">통화 시작</button>
+    <button onclick="endCall()">통화 종료</button>
+</div>
+
+<script>
+    const configuration = {
+        iceServers: [
+            {
+                urls: 'turn:localhost:3478',
+                username: 'testuser',
+                credential: 'testpass'
+            }
+        ]
+    };
+
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    let localStream;
+    let peerConnection;
+    let socket;
+
+    // WebSocket 연결
+    function connectWebSocket() {
+        socket = new WebSocket('ws://localhost:8080/signaling');
+
+        socket.onmessage = async (event) => {
+            const message = JSON.parse(event.data);
+
+            if (message.type === 'offer') {
+                await handleOffer(message);
+            } else if (message.type === 'answer') {
+                await handleAnswer(message);
+            } else if (message.type === 'ice-candidate') {
+                await handleIceCandidate(message);
+            }
+        };
+    }
+
+    async function startCall() {
+        connectWebSocket();
+
+        // 카메라와 마이크 접근
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true
+        });
+        localVideo.srcObject = localStream;
+
+        // PeerConnection 생성
+        peerConnection = new RTCPeerConnection(configuration);
+
+        // 로컬 스트림 추가
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        // 원격 스트림 처리
+        peerConnection.ontrack = (event) => {
+            remoteVideo.srcObject = event.streams[0];
+        };
+
+        // ICE candidate 처리
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.send(JSON.stringify({
+                    type: 'ice-candidate',
+                    candidate: event.candidate
+                }));
+            }
+        };
+
+        // Offer 생성 및 전송
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        socket.send(JSON.stringify({
+            type: 'offer',
+            offer: offer
+        }));
+    }
+
+    async function handleOffer(message) {
+        peerConnection = new RTCPeerConnection(configuration);
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        peerConnection.ontrack = (event) => {
+            remoteVideo.srcObject = event.streams[0];
+        };
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.send(JSON.stringify({
+                    type: 'ice-candidate',
+                    candidate: event.candidate
+                }));
+            }
+        };
+
+        await peerConnection.setRemoteDescription(message.offer);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        socket.send(JSON.stringify({
+            type: 'answer',
+            answer: answer
+        }));
+    }
+
+    async function handleAnswer(message) {
+        await peerConnection.setRemoteDescription(message.answer);
+    }
+
+    async function handleIceCandidate(message) {
+        await peerConnection.addIceCandidate(message.candidate);
+    }
+
+    function endCall() {
+        if (peerConnection) {
+            peerConnection.close();
+        }
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+        }
+        if (socket) {
+            socket.close();
+        }
+
+        localVideo.srcObject = null;
+        remoteVideo.srcObject = null;
+    }
+</script>
+</body>
+</html>
