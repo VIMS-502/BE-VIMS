@@ -1,0 +1,92 @@
+spring:
+  application:
+    name: vims
+  
+  # WebSocket Configuration
+  websocket:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+      allowed-headers: "*"
+  
+  # Database Configuration (MySQL for production)
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql:3306/vims}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${SPRING_DATASOURCE_USERNAME:vims}
+    password: ${SPRING_DATASOURCE_PASSWORD:vimspass}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: update
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+  
+  # Redis Configuration for session management
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: 6379
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+# Server Configuration
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+# Kurento Media Server Configuration
+kurento:
+  ws:
+    uri: ${KURENTO_WS_URI:ws://kurento:8888/kurento}
+
+# COTURN STUN/TURN Server Configuration
+webrtc:
+  stun:
+    urls: ${WEBRTC_STUN_URLS:stun:coturn:3478}
+  turn:
+    urls: ${WEBRTC_TURN_URLS:turn:coturn:3478}
+    username: ${WEBRTC_TURN_USERNAME:turnuser}
+    credential: ${WEBRTC_TURN_CREDENTIAL:turnpass}
+
+# Actuator for health checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Logging Configuration
+logging:
+  level:
+    com.vims: INFO
+    org.kurento: WARN
+    org.springframework.web.socket: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

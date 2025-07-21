@@ -1,0 +1,75 @@
+services:
+  # Spring Boot Application
+  vims-app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/vims
+      - SPRING_DATASOURCE_USERNAME=vims
+      - SPRING_DATASOURCE_PASSWORD=vimspass
+      - SPRING_DATA_REDIS_HOST=redis
+      - KURENTO_WS_URI=ws://kurento:8888/kurento
+      # - WEBRTC_STUN_URLS=stun:coturn:3478
+      # - WEBRTC_TURN_URLS=turn:coturn:3478
+      # - WEBRTC_TURN_USERNAME=turnuser
+      # - WEBRTC_TURN_CREDENTIAL=turnpass
+    depends_on:
+      - mysql
+      - redis
+      - kurento
+      # - coturn
+    networks:
+      - vims-network
+
+  # MySQL Database (이 부분도 추가해야 합니다)
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: vims
+      MYSQL_USER: vims
+      MYSQL_PASSWORD: vimspass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - vims-network
+
+  # Redis Stack for session management, caching, and vector embeddings
+  redis:
+    image: redis/redis-stack:latest
+    ports:
+      - "6379:6379"
+      - "8001:8001"  # RedisInsight web UI
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_ARGS=--save 60 1000
+    networks:
+      - vims-network
+
+  # Kurento Media Server (올바른 들여쓰기)
+  kurento:
+    image: kurento/kurento-media-server:latest
+    ports:
+      - "8888:8888"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - kurento_logs:/var/log/kurento-media-server
+    networks:
+      - vims-network
+
+volumes:
+  mysql_data:
+  redis_data:
+  kurento_logs:
+
+networks:
+  vims-network:
+    driver: bridge
