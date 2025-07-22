@@ -9,9 +9,9 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatMessage {
+public class LectureChatMessage {
     private String id;
-    private String roomId;
+    private String lectureId;
     private String senderId;
     private String senderName;
     private String content;
@@ -22,6 +22,7 @@ public class ChatMessage {
         CHAT,
         JOIN,
         LEAVE,
-        SYSTEM
+        SYSTEM,
+        ANNOUNCEMENT
     }
 }

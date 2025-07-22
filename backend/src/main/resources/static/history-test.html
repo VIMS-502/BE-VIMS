@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>History Loading Test</title>
+    <script src="sockjs.min.js"></script>
+    <script src="stomp.min.js"></script>
+</head>
+<body>
+    <h1>History Loading Test</h1>
+    <div id="status">Disconnected</div>
+    <div id="messages"></div>
+    <button onclick="testHistoryLoading()">Test History Loading</button>
+
+    <script>
+        let stompClient = null;
+        let connected = false;
+
+        function connect() {
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            
+            stompClient.connect({}, function(frame) {
+                console.log('Connected: ' + frame);
+                document.getElementById('status').innerText = 'Connected';
+                connected = true;
+                
+                // Set up global subscription for lecture history
+                stompClient.subscribe('/user/queue/lecture-history', function(historyMsg) {
+                    console.log('📜 Received lecture history:', historyMsg.body);
+                    const history = JSON.parse(historyMsg.body);
+                    
+                    const messagesDiv = document.getElementById('messages');
+                    messagesDiv.innerHTML = '<h3>History Received (' + history.length + ' messages):</h3>';
+                    
+                    history.forEach(msg => {
+                        messagesDiv.innerHTML += '<div>User ' + msg.senderId + ': ' + msg.content + ' (Type: ' + msg.messageType + ')</div>';
+                    });
+                });
+                
+            }, function(error) {
+                console.log('Connection error: ' + error);
+                document.getElementById('status').innerText = 'Connection Error';
+            });
+        }
+
+        function testHistoryLoading() {
+            if (!connected) {
+                connect();
+                setTimeout(testHistoryLoading, 2000);
+                return;
+            }
+            
+            console.log('🚪 Joining lecture 1 to trigger history loading...');
+            
+            stompClient.send('/app/lecture.join', {}, JSON.stringify({
+                lectureId: '1',
+                userId: 'test-user-123',
+                userName: '테스트유저',
+                userRole: 'STUDENT'
+            }));
+        }
+        
+        // Auto-connect on load
+        window.addEventListener('load', function() {
+            connect();
+        });
+    </script>
+</body>
+</html>
