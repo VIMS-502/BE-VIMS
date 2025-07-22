@@ -41,13 +41,15 @@ public class DirectMessageService {
         String roomId = directMessage.generateRoomId();
         
         // DM 방에 메시지 전송 (양쪽 사용자 모두 수신)
-        messagingTemplate.convertAndSend("/topic/dm." + roomId, directMessage);
+        messagingTemplate.convertAndSend("/room/dm." + roomId, directMessage);
         
-        // 수신자에게 개인 알림 전송
+        // 수신자에게 통합 알림 전송
+        com.vims.chat.dto.UnifiedMessage dmNotification = 
+            com.vims.chat.dto.UnifiedMessage.dmNotification(createNotification(directMessage));
         messagingTemplate.convertAndSendToUser(
             directMessage.getReceiverId(), 
-            "/queue/dm-notification", 
-            createNotification(directMessage)
+            "/queue/notifications", 
+            dmNotification
         );
         
         log.info("Direct message saved to DB and sent from {} to {} in room {}", 

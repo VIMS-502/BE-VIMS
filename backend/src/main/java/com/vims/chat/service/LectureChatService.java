@@ -52,8 +52,10 @@ public class LectureChatService {
             );
             messageRepository.save(messageEntity);
             
-            // 강의실 전체에 브로드캐스트
-            messagingTemplate.convertAndSend("/topic/lecture." + joinMessage.getLectureId(), chatMessage);
+            // 통합 메시지로 입장 알림 전송
+            com.vims.chat.dto.UnifiedMessage joinMsg = 
+                com.vims.chat.dto.UnifiedMessage.userJoin(chatMessage);
+            messagingTemplate.convertAndSend("/room/lecture." + joinMessage.getLectureId(), joinMsg);
             
             log.info("User {} joined lecture {}", joinMessage.getUserName(), joinMessage.getLectureId());
         }
@@ -84,8 +86,10 @@ public class LectureChatService {
             );
             messageRepository.save(messageEntity);
             
-            // 강의실 전체에 브로드캐스트
-            messagingTemplate.convertAndSend("/topic/lecture." + leaveMessage.getLectureId(), chatMessage);
+            // 통합 메시지로 퇴장 알림 전송
+            com.vims.chat.dto.UnifiedMessage leaveMsg = 
+                com.vims.chat.dto.UnifiedMessage.userLeave(chatMessage);
+            messagingTemplate.convertAndSend("/room/lecture." + leaveMessage.getLectureId(), leaveMsg);
             
             log.info("User {} left lecture {}", leaveMessage.getUserName(), leaveMessage.getLectureId());
         }
@@ -113,8 +117,10 @@ public class LectureChatService {
         );
         messageRepository.save(messageEntity);
         
-        // 강의실 전체에 브로드캐스트
-        messagingTemplate.convertAndSend("/topic/lecture." + chatMessage.getLectureId(), chatMessage);
+        // 통합 메시지로 실시간 채팅 전송
+        com.vims.chat.dto.UnifiedMessage realtimeMsg = 
+            com.vims.chat.dto.UnifiedMessage.realtimeMessage(chatMessage);
+        messagingTemplate.convertAndSend("/room/lecture." + chatMessage.getLectureId(), realtimeMsg);
         
         log.info("Lecture message sent from {} in lecture {}", 
                 chatMessage.getSenderName(), chatMessage.getLectureId());
@@ -142,8 +148,10 @@ public class LectureChatService {
         );
         messageRepository.save(messageEntity);
         
-        // 강의실 전체에 브로드캐스트 (공지사항)
-        messagingTemplate.convertAndSend("/topic/lecture." + announcement.getLectureId(), announcement);
+        // 통합 메시지로 공지사항 전송
+        com.vims.chat.dto.UnifiedMessage announcementMsg = 
+            com.vims.chat.dto.UnifiedMessage.announcement(announcement);
+        messagingTemplate.convertAndSend("/room/lecture." + announcement.getLectureId(), announcementMsg);
         
         log.info("Announcement sent from {} in lecture {}", 
                 announcement.getSenderName(), announcement.getLectureId());

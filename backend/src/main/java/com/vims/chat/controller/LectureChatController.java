@@ -51,22 +51,24 @@ public class LectureChatController {
         List<Message> recentMessages = lectureChatService.getLectureChatHistory(joinMessage.getLectureId(), 0, 50);
         log.info("📜 Retrieved {} messages from database for lecture {}", recentMessages.size(), joinMessage.getLectureId());
         
+        // 통합 메시지로 히스토리 전송 (방 전체에)
         if (!recentMessages.isEmpty()) {
-            // WebSocket을 통한 히스토리 전송 (단일 방법)
-            log.info("📤 Sending {} message history to user {} via WebSocket", recentMessages.size(), joinMessage.getUserId());
+            log.info("📤 Sending {} message history to room via unified message", recentMessages.size());
             
             try {
-                messagingTemplate.convertAndSendToUser(
-                    joinMessage.getUserId(),
-                    "/queue/lecture-history",
-                    recentMessages
+                com.vims.chat.dto.UnifiedMessage historyMessage = 
+                    com.vims.chat.dto.UnifiedMessage.historySync(recentMessages);
+                
+                // 방 전체에 히스토리 전송 (새로 입장한 사용자만 처리하도록 클라이언트에서 필터링)
+                messagingTemplate.convertAndSend(
+                    "/room/lecture." + joinMessage.getLectureId(), 
+                    historyMessage
                 );
-                log.info("✅ Sent {} message history to user {} successfully", 
-                        recentMessages.size(), joinMessage.getUserId());
+                
+                log.info("✅ Sent unified history message to room lecture.{}", joinMessage.getLectureId());
             } catch (Exception e) {
-                log.error("❌ Failed to send history to user {}: {}", joinMessage.getUserId(), e.getMessage());
+                log.error("❌ Failed to send unified history: {}", e.getMessage());
             }
-            
         } else {
             log.warn("⚠️ No messages found for lecture {}", joinMessage.getLectureId());
         }

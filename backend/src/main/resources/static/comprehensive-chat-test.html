@@ -390,7 +390,7 @@
             }
         }
         
-        // 강의실 입장
+        // 강의실 입장 (Clean 2-구독 방식)
         function joinLecture() {
             console.log('🔥 joinLecture function called');
             
@@ -418,49 +418,21 @@
             console.log('🔥 Setting currentLectureId to:', lectureId);
             currentLectureId = lectureId;
             
-            // 강의실 채팅 구독
-            stompClient.subscribe(`/topic/lecture.${lectureId}`, function(chatMessage) {
-                const message = JSON.parse(chatMessage.body);
-                displayLectureMessage(message);
+            // 🏆 Clean 구독 1: 강의실 통합 메시지 (실시간 + 히스토리)
+            console.log('🎯 Setting up room subscription for:', lectureId);
+            stompClient.subscribe(`/room/lecture.${lectureId}`, function(unifiedMessage) {
+                const message = JSON.parse(unifiedMessage.body);
+                handleRoomMessage(message);
             });
             
-            // 사용자별 개인 알림 구독 설정 (currentUserId가 설정된 후)
-            console.log('🔔 Setting up user-specific subscriptions for user:', currentUserId);
-            
-            // DM 알림 구독
-            const dmNotificationSub = stompClient.subscribe(`/user/queue/dm-notification`, function(notification) {
-                console.log('📨 DM notification received:', notification);
-                const data = JSON.parse(notification.body);
-                showDMNotification(data);
+            // 🏆 Clean 구독 2: 개인 통합 알림
+            console.log('🔔 Setting up notifications subscription for user:', currentUserId);
+            stompClient.subscribe(`/user/queue/notifications`, function(notification) {
+                const message = JSON.parse(notification.body);
+                handleNotificationMessage(message);
             });
-            console.log('📨 DM notification subscription:', dmNotificationSub);
             
-            // DM 히스토리 구독
-            const dmHistorySub = stompClient.subscribe(`/user/queue/dm-history`, function(historyMsg) {
-                console.log('📜 DM history received:', historyMsg);
-                const history = JSON.parse(historyMsg.body);
-                loadDMHistory(history);
-            });
-            console.log('📜 DM history subscription:', dmHistorySub);
-            
-            // 강의장 히스토리 구독 설정
-            console.log('🎓 Setting up lecture history subscription for user:', currentUserId);
-            const lectureHistorySub = stompClient.subscribe(`/user/queue/lecture-history`, function(historyMsg) {
-                console.log('🎓📜 Received lecture history message:', historyMsg);
-                console.log('🎓📜 Message body:', historyMsg.body);
-                console.log('🎓📜 Message headers:', historyMsg.headers);
-                try {
-                    const history = JSON.parse(historyMsg.body);
-                    console.log('🎓📜 Parsed history:', history);
-                    loadLectureHistory(history);
-                } catch (e) {
-                    console.error('❌ Error parsing lecture history:', e);
-                    console.error('❌ Raw message body:', historyMsg.body);
-                }
-            });
-            console.log('🎓📜 Lecture history subscription created:', lectureHistorySub);
-            
-            console.log('✅ User subscriptions set up complete');
+            console.log('✅ Clean subscriptions set up complete (2 total)');
             
             // 강의실 입장 메시지 전송
             console.log('🚪 Joining lecture:', {
@@ -576,28 +548,79 @@
             dmInput.value = '';
         }
         
-        // 강의실 메시지 표시 (큐잉 메커니즘 포함)
-        function displayLectureMessage(message) {
-            console.log('📨 Received message:', message);
+        // 🏆 통합 방 메시지 핸들러
+        function handleRoomMessage(unifiedMessage) {
+            console.log('📨 Received unified room message:', unifiedMessage);
             
-            // 시스템 메시지 중 히스토리 트리거는 화면에 표시하지 않음
-            if (message.content && message.content.includes('HISTORY_LOAD_FOR_USER_')) {
-                console.log('🎯 History trigger message - not displaying');
-                return;
+            switch(unifiedMessage.type) {
+                case 'HISTORY_SYNC':
+                    console.log('📜 Processing history sync');
+                    loadLectureHistory(unifiedMessage.payload);
+                    break;
+                    
+                case 'REALTIME_MESSAGE':
+                    console.log('💬 Processing realtime message');
+                    // 히스토리 로딩 중이면 큐에 저장
+                    if (historyLoading) {
+                        console.log('⏳ History loading in progress, queuing message');
+                        messageQueue.push(unifiedMessage);
+                        return;
+                    }
+                    displayLectureMessageInternal(unifiedMessage.payload);
+                    break;
+                    
+                case 'USER_JOIN':
+                    console.log('👋 Processing user join');
+                    if (!historyLoading) {
+                        displayLectureMessageInternal(unifiedMessage.payload);
+                    }
+                    break;
+                    
+                case 'USER_LEAVE':
+                    console.log('👋 Processing user leave');
+                    if (!historyLoading) {
+                        displayLectureMessageInternal(unifiedMessage.payload);
+                    }
+                    break;
+                    
+                case 'ANNOUNCEMENT':
+                    console.log('📢 Processing announcement');
+                    if (!historyLoading) {
+                        displayLectureMessageInternal(unifiedMessage.payload);
+                    }
+                    break;
+                    
+                default:
+                    console.warn('❓ Unknown room message type:', unifiedMessage.type);
             }
-            
-            // 히스토리 로딩 중이면 큐에 저장
-            if (historyLoading) {
-                console.log('⏳ History loading in progress, queuing message:', message);
-                messageQueue.push(message);
-                return;
-            }
-            
-            // 즉시 표시
-            displayLectureMessageInternal(message);
         }
         
-        // 실제 메시지 표시 로직 (내부 함수)
+        // 🏆 통합 알림 메시지 핸들러
+        function handleNotificationMessage(unifiedMessage) {
+            console.log('🔔 Received notification message:', unifiedMessage);
+            
+            switch(unifiedMessage.type) {
+                case 'DM_RECEIVED':
+                    console.log('💬 Processing DM notification');
+                    showDMNotification(unifiedMessage.payload);
+                    break;
+                    
+                case 'MENTION':
+                    console.log('@️ Processing mention notification');
+                    // TODO: 멘션 알림 처리
+                    break;
+                    
+                case 'ROOM_INVITE':
+                    console.log('🏠 Processing room invite');
+                    // TODO: 방 초대 알림 처리
+                    break;
+                    
+                default:
+                    console.warn('❓ Unknown notification type:', unifiedMessage.type);
+            }
+        }
+        
+        // 실제 메시지 표시 로직 (내부 함수) - 기존과 동일
         function displayLectureMessageInternal(message) {
             let messageClass = 'other';
             if (message.senderId === currentUserId) {
@@ -668,7 +691,7 @@
             
             // DM 방 구독
             const roomId = generateDMRoomId(currentUserId, userId);
-            stompClient.subscribe(`/topic/dm.${roomId}`, function(dmMessage) {
+            stompClient.subscribe(`/room/dm.${roomId}`, function(dmMessage) {
                 const message = JSON.parse(dmMessage.body);
                 displayDMMessage(message);
             });
@@ -777,7 +800,12 @@
             
             messageQueue.forEach(queuedMessage => {
                 console.log('📤 Processing queued message:', queuedMessage);
-                displayLectureMessageInternal(queuedMessage);
+                // 통합 메시지면 payload 사용, 아니면 그대로 사용
+                if (queuedMessage.payload) {
+                    displayLectureMessageInternal(queuedMessage.payload);
+                } else {
+                    displayLectureMessageInternal(queuedMessage);
+                }
             });
             messageQueue = []; // 큐 비우기
             
