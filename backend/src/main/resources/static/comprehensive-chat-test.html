@@ -325,7 +325,7 @@
         
         // WebSocket 연결
         function connect() {
-            const socket = new SockJS('/ws');
+            const socket = new SockJS('/ws/chat');
             stompClient = Stomp.over(socket);
             
             // 디버그 모드 활성화
