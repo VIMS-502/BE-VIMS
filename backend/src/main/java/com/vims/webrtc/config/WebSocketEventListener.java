@@ -1,8 +1,7 @@
 package com.vims.webrtc.config;
 
-import com.vims.chat.dto.LectureJoinMessage;
-import com.vims.chat.service.LectureChatService;
-import com.vims.lecture.service.LectureService;
+import com.vims.chat.dto.RoomJoinMessage;
+import com.vims.chat.service.RoomChatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -15,43 +14,30 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 @Slf4j
 public class WebSocketEventListener {
 
-    private final LectureChatService lectureChatService;
-    private final LectureService lectureService;
+    private final RoomChatService roomChatService;
 
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         
-        String userId = (String) headerAccessor.getSessionAttributes().get("userId");
+        Integer userId = (Integer) headerAccessor.getSessionAttributes().get("userId");
         String userName = (String) headerAccessor.getSessionAttributes().get("userName");
-        String lectureId = (String) headerAccessor.getSessionAttributes().get("lectureId");
+        String roomCode = (String) headerAccessor.getSessionAttributes().get("roomCode");
         String userRole = (String) headerAccessor.getSessionAttributes().get("userRole");
         
         if (userId != null) {
-            log.info("User {} disconnected from session", userName != null ? userName : userId);
+            log.info("User {} disconnected from session", userName != null ? userName : userId.toString());
             
-            // 강의실에서 자동 퇴장 처리
-            if (lectureId != null) {
-                LectureJoinMessage leaveMessage = new LectureJoinMessage();
-                leaveMessage.setLectureId(lectureId);
+            // 방에서 자동 퇴장 처리
+            if (roomCode != null) {
+                RoomJoinMessage leaveMessage = new RoomJoinMessage();
+                leaveMessage.setRoomCode(roomCode);
                 leaveMessage.setUserId(userId);
-                leaveMessage.setUserName(userName != null ? userName : userId);
+                leaveMessage.setUserName(userName != null ? userName : userId.toString());
                 leaveMessage.setUserRole(userRole != null ? userRole : "STUDENT");
                 
-                lectureChatService.leaveLecture(leaveMessage);
-            } else {
-                // 세션 정리 (사용자가 어떤 강의실에 있었는지 확인 후 정리)
-                lectureService.cleanupUserSession(userId);
+                roomChatService.leaveRoom(leaveMessage);
             }
-        }
-        
-        // 기존 레거시 세션 정리 (하위 호환성)
-        String legacyUsername = (String) headerAccessor.getSessionAttributes().get("username");
-        String legacyRoomId = (String) headerAccessor.getSessionAttributes().get("roomId");
-        
-        if (legacyUsername != null && legacyRoomId != null) {
-            log.info("Legacy session cleanup for user {} in room {}", legacyUsername, legacyRoomId);
-            // 필요시 기존 ChatService 호출하여 정리
         }
     }
 }

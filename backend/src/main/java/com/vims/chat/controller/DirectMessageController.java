@@ -44,7 +44,7 @@ public class DirectMessageController {
                 userId1.equals(requesterId) ? userId2 : userId1);
         
         // DM 히스토리 로드하여 요청자에게 전송
-        List<Message> dmHistory = directMessageService.getDirectMessageHistory(userId1, userId2, 0, 50);
+        List<Message> dmHistory = directMessageService.getDirectMessageHistory(Integer.parseInt(userId1), Integer.parseInt(userId2), 0, 50);
         
         if (!dmHistory.isEmpty()) {
             // 개별 사용자에게 DM 히스토리 전송
@@ -60,8 +60,8 @@ public class DirectMessageController {
     // DM 히스토리 조회 API
     @GetMapping("/dm/history")
     public ResponseEntity<List<Message>> getDirectMessageHistory(
-            @RequestParam String userId1,
-            @RequestParam String userId2,
+            @RequestParam Integer userId1,
+            @RequestParam Integer userId2,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         
@@ -71,7 +71,7 @@ public class DirectMessageController {
 
     // 최근 DM 상대방 목록 조회 API
     @GetMapping("/dm/recent-partners")
-    public ResponseEntity<List<Object[]>> getRecentDmPartners(@RequestParam String userId) {
+    public ResponseEntity<List<Object[]>> getRecentDmPartners(@RequestParam Integer userId) {
         List<Object[]> partners = directMessageService.getRecentDmPartners(userId);
         return ResponseEntity.ok(partners);
     }

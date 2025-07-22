@@ -16,21 +16,15 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/ws/**").permitAll()
-                .requestMatchers("/chat-test.html").permitAll()
-                .requestMatchers("/local-chat.html").permitAll()
-                .requestMatchers("/simple-chat.html").permitAll()
                 .requestMatchers("/comprehensive-chat-test.html").permitAll()
-                .requestMatchers("/simple-test.html").permitAll()
-                .requestMatchers("/websocket-debug.html").permitAll()
-                .requestMatchers("/history-test.html").permitAll()
                 .requestMatchers("/sockjs.min.js").permitAll()
                 .requestMatchers("/stomp.min.js").permitAll()
-                .requestMatchers("/api/lectures/**").permitAll()
                 .requestMatchers("/api/chat/**").permitAll()
+                .requestMatchers("/api/rooms/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .anyRequest().authenticated()
             )
-            .headers(headers -> headers.frameOptions().disable());
+            .headers(headers -> headers.frameOptions(frame -> frame.disable()));
         
         return http.build();
     }
