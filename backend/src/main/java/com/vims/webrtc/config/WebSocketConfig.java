@@ -11,27 +11,11 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 
 @Configuration
 @EnableWebSocket
-@EnableWebSocketMessageBroker
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSocketConfigurer {
-
-    @Override
-    public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic", "/queue", "/room");
-        config.setApplicationDestinationPrefixes("/app");
-        config.setUserDestinationPrefix("/user");
-    }
-
-    @Override
-    public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws/chat")
-                .setAllowedOriginPatterns("*")
-                .withSockJS();
-    }
+public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // TODO: Implement SignalingHandler for WebRTC signaling
-        // registry.addHandler(new SignalingHandler(), "/signaling")
-        //         .setAllowedOrigins("*");
+        registry.addHandler(new SignalingHandler(), "/signaling")
+                .setAllowedOrigins("*");
     }
 }

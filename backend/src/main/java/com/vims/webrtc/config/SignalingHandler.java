@@ -1,4 +1,4 @@
-package com.example.vims;
+package com.vims.webrtc.handler;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;

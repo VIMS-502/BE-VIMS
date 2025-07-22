@@ -28,6 +28,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/lectures/**").permitAll()
                 .requestMatchers("/api/chat/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
+                //시그널링 + webRTC
+                .requestMatchers("/signaling").permitAll()  // 이 줄 추가
+                .requestMatchers("/ws/**").permitAll()
                 .anyRequest().authenticated()
             )
             .headers(headers -> headers.frameOptions().disable());
