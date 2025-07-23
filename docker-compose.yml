@@ -18,9 +18,12 @@ services:
       # - WEBRTC_TURN_USERNAME=turnuser
       # - WEBRTC_TURN_CREDENTIAL=turnpass
     depends_on:
-      - mysql
-      - redis
-      - kurento
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kurento:
+        condition: service_started
       # - coturn
     networks:
       - vims-network
@@ -38,6 +41,11 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     networks:
       - vims-network
 

@@ -1,6 +1,5 @@
 package com.vims.chat.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -9,9 +8,7 @@ import java.util.List;
 
 @Data
 @NoArgsConstructor 
-@AllArgsConstructor
 public class UnifiedMessage {
-    private String id;
     private MessageCategory category;
     private MessageType type;
     private Object payload;
@@ -28,7 +25,10 @@ public class UnifiedMessage {
         HISTORY_SYNC,       // 히스토리 동기화
         USER_JOIN,          // 사용자 입장
         USER_LEAVE,         // 사용자 퇴장
-        ANNOUNCEMENT,       // 공지사항
+        
+        // DM Messages (NEW)
+        DM_REALTIME,        // DM 실시간 메시지
+        DM_HISTORY_SYNC,    // DM 히스토리 동기화
         
         // Notifications
         DM_RECEIVED,        // DM 수신 알림
@@ -38,62 +38,66 @@ public class UnifiedMessage {
     
     // 정적 팩토리 메서드들
     public static UnifiedMessage realtimeMessage(Object messageData) {
-        return new UnifiedMessage(
-            java.util.UUID.randomUUID().toString(),
-            MessageCategory.ROOM,
-            MessageType.REALTIME_MESSAGE,
-            messageData,
-            LocalDateTime.now()
-        );
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.ROOM);
+        message.setType(MessageType.REALTIME_MESSAGE);
+        message.setPayload(messageData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
     }
     
     public static UnifiedMessage historySync(List<?> historyData) {
-        return new UnifiedMessage(
-            java.util.UUID.randomUUID().toString(),
-            MessageCategory.ROOM,
-            MessageType.HISTORY_SYNC,
-            historyData,
-            LocalDateTime.now()
-        );
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.ROOM);
+        message.setType(MessageType.HISTORY_SYNC);
+        message.setPayload(historyData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
     }
     
     public static UnifiedMessage userJoin(Object joinData) {
-        return new UnifiedMessage(
-            java.util.UUID.randomUUID().toString(),
-            MessageCategory.ROOM,
-            MessageType.USER_JOIN,
-            joinData,
-            LocalDateTime.now()
-        );
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.ROOM);
+        message.setType(MessageType.USER_JOIN);
+        message.setPayload(joinData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
     }
     
     public static UnifiedMessage userLeave(Object leaveData) {
-        return new UnifiedMessage(
-            java.util.UUID.randomUUID().toString(),
-            MessageCategory.ROOM,
-            MessageType.USER_LEAVE,
-            leaveData,
-            LocalDateTime.now()
-        );
-    }
-    
-    public static UnifiedMessage announcement(Object announcementData) {
-        return new UnifiedMessage(
-            java.util.UUID.randomUUID().toString(),
-            MessageCategory.ROOM,
-            MessageType.ANNOUNCEMENT,
-            announcementData,
-            LocalDateTime.now()
-        );
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.ROOM);
+        message.setType(MessageType.USER_LEAVE);
+        message.setPayload(leaveData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
     }
     
     public static UnifiedMessage dmNotification(Object notificationData) {
-        return new UnifiedMessage(
-            java.util.UUID.randomUUID().toString(),
-            MessageCategory.NOTIFICATION,
-            MessageType.DM_RECEIVED,
-            notificationData,
-            LocalDateTime.now()
-        );
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.NOTIFICATION);
+        message.setType(MessageType.DM_RECEIVED);
+        message.setPayload(notificationData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
+    }
+    
+    // DM용 새로운 팩토리 메서드들
+    public static UnifiedMessage dmRealtime(Object messageData) {
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.ROOM);
+        message.setType(MessageType.DM_REALTIME);
+        message.setPayload(messageData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
+    }
+    
+    public static UnifiedMessage dmHistorySync(List<?> historyData) {
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.ROOM);
+        message.setType(MessageType.DM_HISTORY_SYNC);
+        message.setPayload(historyData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
     }
 }
