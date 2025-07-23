@@ -33,6 +33,8 @@ public class AuthController {
             AuthResponse response = new AuthResponse(accessToken, refreshToken, user);
             
             log.info("회원가입 성공: {}", user.getEmail());
+            log.info("accessToken: {}", accessToken);
+            
             return ResponseEntity.ok(response);
             
         } catch (IllegalArgumentException e) {

@@ -11,7 +11,7 @@ spring:
   
   # Database Configuration (MySQL for production)
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql:3306/vims}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql:3306/vims?serverTimezone=Asia/Seoul}
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${SPRING_DATASOURCE_USERNAME:vims}
     password: ${SPRING_DATASOURCE_PASSWORD:vimspass}
@@ -47,7 +47,7 @@ spring:
           min-idle: 0
 
 jwt:
-  secret: "ThisIsASecretKeyForvimsProject2025!@#123456"
+  secret: "ThisIsASecretKeyForvimsProject2025!@#1234567890abcdefghijklmnopqrstuvwxyzQWERTYUIOP"
   expiration: 86400000
   refresh-expiration: 604800000
 
