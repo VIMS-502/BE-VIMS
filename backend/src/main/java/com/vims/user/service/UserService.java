@@ -1,7 +1,6 @@
 package com.vims.user.service;
 
-import com.vims.user.dto.SignupRequest;
-import com.vims.user.dto.UserDto;
+import com.vims.user.dto.*;
 import com.vims.user.entity.OAuthProvider;
 import com.vims.user.entity.User;
 import com.vims.user.entity.UserRole;
@@ -70,6 +69,20 @@ public class UserService implements UserDetailsService {
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .build();
+    }
+
+
+    // 로그인
+    @Transactional
+    public UserDto login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + request.getEmail()));
+    
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다");
+        }
+
+        return convertToDto(user);
     }
    
 }

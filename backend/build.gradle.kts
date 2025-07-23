@@ -30,6 +30,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
+	//이메일센더
+	implementation("org.springframework.boot:spring-boot-starter-mail")
 	
 	// WebRTC 시그널링을 위한 JSON 처리
 	implementation("com.fasterxml.jackson.core:jackson-databind")
