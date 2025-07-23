@@ -29,7 +29,7 @@ public class SecurityConfig {
                 // .anyRequest().authenticated()
             )
             .headers(headers -> headers.frameOptions(frame -> frame.disable()));
-        
+
         return http.build();
     }
 }
