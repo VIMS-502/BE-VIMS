@@ -1,6 +1,5 @@
 package com.vims.webrtc.config;
 
-import com.vims.webrtc.handler.SignalingHandler;  // 올바른 import 추가
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.*;
