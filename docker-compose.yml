@@ -8,7 +8,7 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/vims
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/vims?serverTimezone=Asia/Seoul
       - SPRING_DATASOURCE_USERNAME=vims
       - SPRING_DATASOURCE_PASSWORD=vimspass
       - SPRING_DATA_REDIS_HOST=redis
