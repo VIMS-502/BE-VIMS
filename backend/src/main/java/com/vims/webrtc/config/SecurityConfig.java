@@ -22,6 +22,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/chat/**").permitAll()
                 .requestMatchers("/api/rooms/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
+                //시그널링 + webRTC
+                .requestMatchers("/signaling").permitAll()  // 이 줄 추가
+                .requestMatchers("/ws/**").permitAll()
                 .anyRequest().authenticated()
             )
             .headers(headers -> headers.frameOptions(frame -> frame.disable()));
