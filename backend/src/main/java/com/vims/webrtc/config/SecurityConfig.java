@@ -15,17 +15,18 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/ws/**").permitAll()
-                .requestMatchers("/comprehensive-chat-test.html").permitAll()
-                .requestMatchers("/sockjs.min.js").permitAll()
-                .requestMatchers("/stomp.min.js").permitAll()
-                .requestMatchers("/api/chat/**").permitAll()
-                .requestMatchers("/api/rooms/**").permitAll()
-                .requestMatchers("/h2-console/**").permitAll()
-                //시그널링 + webRTC
-                .requestMatchers("/signaling").permitAll()  // 이 줄 추가
-                .requestMatchers("/ws/**").permitAll()
-                .anyRequest().authenticated()
+                .anyRequest().permitAll() 
+                // .requestMatchers("/ws/**").permitAll()
+                // .requestMatchers("/comprehensive-chat-test.html").permitAll()
+                // .requestMatchers("/sockjs.min.js").permitAll()
+                // .requestMatchers("/stomp.min.js").permitAll()
+                // .requestMatchers("/api/chat/**").permitAll()
+                // .requestMatchers("/api/rooms/**").permitAll()
+                // .requestMatchers("/h2-console/**").permitAll()
+                // //시그널링 + webRTC
+                // .requestMatchers("/signaling").permitAll()  // 이 줄 추가
+                // .requestMatchers("/ws/**").permitAll()
+                // .anyRequest().authenticated()
             )
             .headers(headers -> headers.frameOptions(frame -> frame.disable()));
         
