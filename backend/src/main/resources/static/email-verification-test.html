@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>이메일 인증 테스트</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        input, button { margin: 5px; padding: 5px; }
+        #result { margin-top: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>이메일 인증 테스트</h2>
+    <div>
+        <input type="email" id="email" placeholder="이메일 입력" required>
+        <button onclick="sendCode()">인증코드 전송</button>
+    </div>
+    <div>
+        <input type="text" id="code" placeholder="인증코드 입력">
+        <button onclick="verifyCode()">인증코드 확인</button>
+    </div>
+    <div id="result"></div>
+
+    <script>
+        function sendCode() {
+            const email = document.getElementById('email').value;
+            fetch(`/api/auth/send-code?email=${encodeURIComponent(email)}`, {
+                method: 'POST'
+            })
+            .then(res => {
+                if (res.ok) {
+                    document.getElementById('result').innerText = '인증코드가 이메일로 전송되었습니다.';
+                } else {
+                    document.getElementById('result').innerText = '인증코드 전송 실패';
+                }
+            });
+        }
+
+        function verifyCode() {
+            const email = document.getElementById('email').value;
+            const code = document.getElementById('code').value;
+            fetch(`/api/auth/verify-code?email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`, {
+                method: 'POST'
+            })
+            .then(res => res.text().then(text => ({ok: res.ok, text})))
+            .then(({ok, text}) => {
+                if (ok) {
+                    document.getElementById('result').innerText = '인증 성공!';
+                } else {
+                    document.getElementById('result').innerText = '실패: ' + text;
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

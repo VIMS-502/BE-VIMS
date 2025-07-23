@@ -48,6 +48,18 @@ spring:
           max-idle: 8
           min-idle: 0
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: vimsA502@gmail.com
+    password: bmhi vdfp xedj mmxb
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 jwt:
   secret: "ThisIsASecretKeyForvimsProject2025!@#1234567890abcdefghijklmnopqrstuvwxyzQWERTYUIOP"
   expiration: 86400000
