@@ -38,8 +38,10 @@ public class DirectMessageService {
         
         String roomId = directMessage.generateRoomId();
         
-        // DM 방에 메시지 전송 (양쪽 사용자 모두 수신)
-        messagingTemplate.convertAndSend("/room/dm." + roomId, directMessage);
+        // DM 방에 통합 메시지로 실시간 메시지 전송 (양쪽 사용자 모두 수신)
+        com.vims.chat.dto.UnifiedMessage realtimeMessage = 
+            com.vims.chat.dto.UnifiedMessage.dmRealtime(directMessage);
+        messagingTemplate.convertAndSend("/topic/dm." + roomId, realtimeMessage);
         
         // 수신자에게 통합 알림 전송
         com.vims.chat.dto.UnifiedMessage dmNotification = 

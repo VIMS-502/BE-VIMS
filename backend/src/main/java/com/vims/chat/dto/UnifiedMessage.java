@@ -26,6 +26,10 @@ public class UnifiedMessage {
         USER_JOIN,          // 사용자 입장
         USER_LEAVE,         // 사용자 퇴장
         
+        // DM Messages (NEW)
+        DM_REALTIME,        // DM 실시간 메시지
+        DM_HISTORY_SYNC,    // DM 히스토리 동기화
+        
         // Notifications
         DM_RECEIVED,        // DM 수신 알림
         MENTION,            // 멘션 알림
@@ -74,6 +78,25 @@ public class UnifiedMessage {
         message.setCategory(MessageCategory.NOTIFICATION);
         message.setType(MessageType.DM_RECEIVED);
         message.setPayload(notificationData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
+    }
+    
+    // DM용 새로운 팩토리 메서드들
+    public static UnifiedMessage dmRealtime(Object messageData) {
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.ROOM);
+        message.setType(MessageType.DM_REALTIME);
+        message.setPayload(messageData);
+        message.setTimestamp(LocalDateTime.now());
+        return message;
+    }
+    
+    public static UnifiedMessage dmHistorySync(List<?> historyData) {
+        UnifiedMessage message = new UnifiedMessage();
+        message.setCategory(MessageCategory.ROOM);
+        message.setType(MessageType.DM_HISTORY_SYNC);
+        message.setPayload(historyData);
         message.setTimestamp(LocalDateTime.now());
         return message;
     }

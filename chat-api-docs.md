@@ -5,94 +5,227 @@
 - **Protocol**: SockJS + STOMP
 - **연결 방법**: SockJS → STOMP over WebSocket
 
-## 🏫 강의실 채팅 (Lecture Chat)
+## 🏠 방 관리 (Room Management)
 
-### WebSocket 메시지
+### REST API
 
-#### 1. 강의실 입장
-- **Destination**: `/app/lecture.join`
-- **Method**: `SEND`
-- **Payload**:
+#### 1. 방 생성
+- **URL**: `POST /api/rooms/create`
+- **설명**: 새로운 방(강의실)을 생성합니다
+- **Request Body**:
 ```json
 {
-  "lectureId": "1",
-  "userId": "123", 
-  "userName": "김철수",
-  "userRole": "STUDENT|INSTRUCTOR|TA"
+  "title": "자바 프로그래밍 수업",
+  "description": "초급자를 위한 자바 기초 강의",
+  "hostUserId": 123,
+  "maxParticipants": 10,
+  "password": "optional_password",
+  "isRecordingEnabled": false,
+  "scheduledStartTime": "2024-01-01T10:00:00",
+  "scheduledEndTime": "2024-01-01T12:00:00",
+  "isOpenToEveryone": false
 }
 ```
-- **필수 구독**: 
-  - `/topic/lecture.{lectureId}` - 강의실 전체 메시지 수신
-  - `/user/queue/lecture-history` - 개인별 히스토리 수신 (입장 직후 자동 전송)
-- **자동 처리**: 입장과 동시에 최근 50개 메시지 히스토리 자동 전송
-
-#### 2. 강의실 퇴장  
-- **Destination**: `/app/lecture.leave`
-- **Method**: `SEND`
-- **Payload**:
+- **Response**:
 ```json
 {
-  "lectureId": "1",
-  "userId": "123",
-  "userName": "김철수"
-}
-```
-
-#### 3. 강의실 메시지 전송
-- **Destination**: `/app/lecture.send`
-- **Method**: `SEND`
-- **Payload**:
-```json
-{
-  "lectureId": "1",
-  "senderId": "123",
-  "senderName": "김철수", 
-  "content": "안녕하세요!",
-  "type": "CHAT|ANNOUNCEMENT"
-}
-```
-- **권한**: `ANNOUNCEMENT` 타입은 `INSTRUCTOR|TA` 역할만 전송 가능
-
-#### 4. 강의실 메시지 수신
-- **구독**: `/topic/lecture.{lectureId}`
-- **실시간 메시지 형태**:
-```json
-{
-  "id": "uuid",
-  "lectureId": "1", 
-  "senderId": "123",
-  "senderName": "김철수",
-  "content": "메시지 내용",
-  "type": "CHAT|JOIN|LEAVE|SYSTEM|ANNOUNCEMENT",
-  "timestamp": "2024-01-01T10:00:00"
+  "roomId": 1,
+  "roomCode": "ABC123",
+  "title": "자바 프로그래밍 수업",
+  "description": "초급자를 위한 자바 기초 강의",
+  "hostUserId": 123,
+  "maxParticipants": 10,
+  "isRecordingEnabled": false,
+  "createdAt": "2024-01-01T10:00:00",
+  "autoJoin": true
 }
 ```
 
-#### 5. 강의실 히스토리 수신
-- **구독**: `/user/queue/lecture-history` 
-- **자동 전송**: 강의실 입장 직후 자동으로 전송됨
-- **히스토리 형태**:
+#### 2. 방 정보 조회
+- **URL**: `GET /api/rooms/{roomCode}`
+- **설명**: 방 코드로 방 정보를 조회합니다
+- **Parameters**:
+  - `roomCode` (path): 방 코드
+- **Response**:
+```json
+{
+  "id": 1,
+  "roomCode": "ABC123",
+  "title": "자바 프로그래밍 수업",
+  "description": "초급자를 위한 자바 기초 강의",
+  "hostUserId": 123,
+  "maxParticipants": 10,
+  "currentParticipants": 5,
+  "isRecordingEnabled": false,
+  "createdAt": "2024-01-01T10:00:00",
+  "scheduledStartTime": "2024-01-01T10:00:00",
+  "scheduledEndTime": "2024-01-01T12:00:00",
+  "status": "ACTIVE"
+}
+```
+
+#### 3. 공개 방 목록 조회
+- **URL**: `GET /api/rooms/open`
+- **설명**: 공개된 모든 방 목록을 조회합니다
+- **Response**:
 ```json
 [
   {
     "id": 1,
-    "roomId": 49,
-    "senderId": 123,
-    "messageType": "CHAT|ANNOUNCEMENT|SYSTEM",
-    "content": "메시지 내용",
+    "roomCode": "ABC123",
+    "title": "자바 프로그래밍 수업",
+    "description": "초급자를 위한 자바 기초 강의",
+    "hostUserId": 123,
+    "maxParticipants": 10,
+    "currentParticipants": 5,
+    "isRecordingEnabled": false,
     "createdAt": "2024-01-01T10:00:00"
   }
 ]
 ```
-- **메시지 순서 보장**: 히스토리 로딩 중 수신된 실시간 메시지는 큐에 저장 후 순차 처리
+
+#### 4. 사용자 방 목록 조회
+- **URL**: `GET /api/rooms/user/{hostUserId}`
+- **설명**: 특정 사용자가 생성한 방 목록을 조회합니다
+- **Parameters**:
+  - `hostUserId` (path): 호스트 사용자 ID
+- **Response**:
+```json
+[
+  {
+    "id": 1,
+    "roomCode": "ABC123",
+    "title": "자바 프로그래밍 수업",
+    "hostUserId": 123,
+    "maxParticipants": 10,
+    "createdAt": "2024-01-01T10:00:00"
+  }
+]
+```
+
+#### 5. 방 검색
+- **URL**: `GET /api/rooms/search`
+- **설명**: 키워드로 방을 검색합니다
+- **Parameters**:
+  - `keyword` (query): 검색 키워드
+- **Response**:
+```json
+[
+  {
+    "id": 1,
+    "roomCode": "ABC123",
+    "title": "자바 프로그래밍 수업",
+    "description": "초급자를 위한 자바 기초 강의",
+    "hostUserId": 123,
+    "maxParticipants": 10,
+    "createdAt": "2024-01-01T10:00:00"
+  }
+]
+```
+
+## 💬 방 채팅 (Room Chat)
+
+### WebSocket 메시지
+
+#### 1. 방 입장
+- **Destination**: `/app/room.join`
+- **Method**: `SEND`
+- **Payload**:
+```json
+{
+  "roomCode": "ABC123",
+  "userId": 123, 
+  "userName": "김철수",
+  "userRole": "INSTRUCTOR|STUDENT|TA"
+}
+```
+- **필수 구독**: 
+  - `/room/{roomCode}` - 방 전체 메시지 수신 (히스토리 + 실시간)
+- **자동 처리**: 입장과 동시에 최근 50개 메시지 히스토리 자동 전송 (통합 메시지 형태)
+
+#### 2. 방 퇴장  
+- **Destination**: `/app/room.leave`
+- **Method**: `SEND`
+- **Payload**:
+```json
+{
+  "roomCode": "ABC123",
+  "userId": 123,
+  "userName": "김철수"
+}
+```
+
+#### 3. 방 메시지 전송
+- **Destination**: `/app/room.send`
+- **Method**: `SEND`
+- **Payload**:
+```json
+{
+  "roomCode": "ABC123",
+  "senderId": 123,
+  "senderName": "김철수", 
+  "content": "안녕하세요!",
+  "type": "CHAT|JOIN|LEAVE",
+  "timestamp": "2024-01-01T10:00:00"
+}
+```
+- **Message Types**:
+  - `CHAT`: 일반 채팅 메시지
+  - `JOIN`: 입장 메시지 (자동 생성)
+  - `LEAVE`: 퇴장 메시지 (자동 생성)
+
+#### 4. 방 메시지 수신
+- **구독**: `/room/{roomCode}`
+- **통합 메시지 형태** (히스토리와 실시간 모두 포함):
+```json
+{
+  "type": "HISTORY_SYNC|REALTIME_MESSAGE|USER_JOIN|USER_LEAVE",
+  "data": [메시지 배열 또는 단일 메시지],
+  "timestamp": "2024-01-01T10:00:00"
+}
+```
+
+#### 5. 메시지 형태 상세
+- **히스토리 메시지**:
+```json
+{
+  "type": "HISTORY_SYNC",
+  "data": [
+    {
+      "id": 1,
+      "roomId": 49,
+      "senderId": 123,
+      "messageType": "CHAT",
+      "content": "메시지 내용",
+      "createdAt": "2024-01-01T10:00:00"
+    }
+  ],
+  "timestamp": "2024-01-01T10:00:00"
+}
+```
+
+- **실시간 메시지**:
+```json
+{
+  "type": "REALTIME_MESSAGE",
+  "data": {
+    "roomCode": "ABC123",
+    "senderId": 123,
+    "senderName": "김철수",
+    "content": "메시지 내용",
+    "type": "CHAT",
+    "timestamp": "2024-01-01T10:00:00"
+  }
+}
+```
 
 ### REST API
 
-#### 1. 강의실 채팅 히스토리 조회 (선택적 사용)
-- **URL**: `GET /api/chat/lecture/history`
-- **용도**: 추가 페이징이 필요한 경우만 사용 (기본 히스토리는 WebSocket으로 자동 전송)
+#### 1. 방 채팅 히스토리 조회 (페이징)
+- **URL**: `GET /api/chat/room/history`
+- **설명**: 추가 페이징이 필요한 경우 사용 (기본 히스토리는 WebSocket으로 자동 전송)
 - **Parameters**:
-  - `lectureId` (required): 강의실 ID
+  - `roomCode` (required): 방 코드
   - `page` (optional, default: 0): 페이지 번호  
   - `size` (optional, default: 50): 페이지 크기
 - **Response**:
@@ -102,21 +235,33 @@
     "id": 1,
     "roomId": 49,
     "senderId": 123,
-    "messageType": "CHAT|ANNOUNCEMENT|SYSTEM", 
+    "messageType": "CHAT", 
     "content": "메시지 내용",
     "createdAt": "2024-01-01T10:00:00"
   }
 ]
 ```
-- **주의**: 입장 직후 기본 히스토리는 WebSocket으로 자동 제공되므로 추가 페이지만 필요시 사용
 
-#### 2. 강의실 메시지 개수 조회
-- **URL**: `GET /api/chat/lecture/message-count`
+#### 2. 방 메시지 개수 조회
+- **URL**: `GET /api/chat/room/message-count`
 - **Parameters**:
-  - `lectureId` (required): 강의실 ID
+  - `roomCode` (required): 방 코드
 - **Response**: 
 ```json
 25
+```
+
+#### 3. 방 참여자 목록 조회
+- **URL**: `GET /api/chat/room/participants`
+- **Parameters**:
+  - `roomCode` (required): 방 코드
+- **Response**:
+```json
+{
+  "123": "김철수",
+  "456": "이영희",
+  "789": "박민수"
+}
 ```
 
 ## 💬 다이렉트 메시지 (Direct Message)
@@ -148,21 +293,57 @@
   "requesterId": "123"
 }
 ```
-- **구독**: `/user/queue/dm-history` - DM 히스토리 수신
+- **필수 구독**: 
+  - `/topic/dm.{roomId}` - DM 통합 메시지 수신 (히스토리 + 실시간)
+  - `/user/queue/dm-notification` - DM 알림 수신
+- **자동 처리**: 입장과 동시에 최근 50개 DM 히스토리 자동 전송 (통합 메시지 형태)
 
 #### 3. DM 메시지 수신
-- **구독**: `/topic/dm.{roomId}` (roomId = `dm_{smallerId}_{largerId}`)
-- **개인 알림**: `/user/queue/dm-notification`
-- **메시지 형태**:
+- **구독**: `/topic/dm.{roomId}` (roomId = `{smallerId}_{largerId}`)
+- **통합 메시지 형태** (히스토리와 실시간 모두 포함):
 ```json
 {
-  "id": "uuid",
-  "senderId": "123",
-  "senderName": "김철수",
-  "receiverId": "456",
-  "receiverName": "이영희",
-  "content": "메시지 내용",
-  "type": "TEXT|FILE|SYSTEM",
+  "category": "ROOM",
+  "type": "DM_HISTORY_SYNC|DM_REALTIME",
+  "payload": [메시지 배열 또는 단일 메시지],
+  "timestamp": "2024-01-01T10:00:00"
+}
+```
+
+#### 4. DM 메시지 형태 상세
+- **DM 히스토리**:
+```json
+{
+  "category": "ROOM",
+  "type": "DM_HISTORY_SYNC",
+  "payload": [
+    {
+      "id": 1,
+      "senderId": 123,
+      "receiverId": 456,
+      "messageType": "DM",
+      "content": "메시지 내용",
+      "createdAt": "2024-01-01T10:00:00"
+    }
+  ],
+  "timestamp": "2024-01-01T10:00:00"
+}
+```
+
+- **DM 실시간 메시지**:
+```json
+{
+  "category": "ROOM",
+  "type": "DM_REALTIME",
+  "payload": {
+    "senderId": 123,
+    "senderName": "김철수",
+    "receiverId": 456,
+    "receiverName": "이영희",
+    "content": "메시지 내용",
+    "type": "TEXT",
+    "timestamp": "2024-01-01T10:00:00"
+  },
   "timestamp": "2024-01-01T10:00:00"
 }
 ```
@@ -204,12 +385,10 @@
 
 ## 📋 메시지 타입
 
-### LectureChatMessage.MessageType
+### RoomChatMessage.MessageType
 - `CHAT`: 일반 채팅
-- `JOIN`: 입장 메시지
-- `LEAVE`: 퇴장 메시지  
-- `SYSTEM`: 시스템 메시지
-- `ANNOUNCEMENT`: 공지사항 (강사/TA만 가능)
+- `JOIN`: 입장 메시지 (자동 생성)
+- `LEAVE`: 퇴장 메시지 (자동 생성)
 
 ### DirectMessage.MessageType
 - `TEXT`: 텍스트 메시지
@@ -218,7 +397,6 @@
 
 ### Message.MessageType (DB)
 - `CHAT`: 일반 채팅
-- `ANNOUNCEMENT`: 공지사항
 - `SYSTEM`: 시스템 메시지
 - `DM`: 다이렉트 메시지
 
@@ -226,39 +404,36 @@
 
 ### 🏆 권장 구조 (Clean & Simple)
 ```javascript
-// 필수 구독 2개만
-1. `/room/lecture.{lectureId}`     // 강의실 모든 메시지 (히스토리+실시간)  
-2. `/user/queue/notifications`     // 개인 알림 (DM, 멘션 등)
+// 기본 구독 (앱 시작시)
+1. `/user/queue/dm-notification`   // DM 알림
 
-// 동적 구독 (필요시)
-3. `/room/dm.{roomId}`            // DM 방 (열 때만 구독)
+// 방 입장시 구독
+2. `/room/{roomCode}`              // 방 통합 메시지 (히스토리+실시간)  
+
+// DM 창 열 때 동적 구독
+3. `/topic/dm.{roomId}`           // DM 통합 메시지 (히스토리+실시간)
 ```
 
 ### 📱 메시지 타입으로 구분
 ```javascript
-// 강의실 메시지 타입들
-- HISTORY_SYNC     // 히스토리 동기화
-- REALTIME_MESSAGE // 실시간 메시지  
+// 방 메시지 타입들 (통합 메시지)
+- HISTORY_SYNC     // 방 히스토리 동기화
+- REALTIME_MESSAGE // 방 실시간 메시지  
 - USER_JOIN        // 입장 알림
 - USER_LEAVE       // 퇴장 알림
-- ANNOUNCEMENT     // 공지사항
 
-// 개인 알림 타입들  
-- DM_RECEIVED      // DM 수신
-- MENTION          // 멘션 알림
-- ROOM_INVITE      // 방 초대
+// DM 메시지 타입들 (통합 메시지)
+- DM_HISTORY_SYNC  // DM 히스토리 동기화
+- DM_REALTIME      // DM 실시간 메시지
+
+// 알림 타입들
+- DM_RECEIVED      // DM 수신 알림
 ```
 
-### 📋 현재 구조 (레거시)
-<details>
-<summary>기존 4개 구독 방식 (호환성)</summary>
-
-1. **강의실 실시간**: `/topic/lecture.{lectureId}` 
-2. **강의실 히스토리**: `/user/queue/lecture-history`
-3. **DM 알림**: `/user/queue/dm-notification`
-4. **DM 히스토리**: `/user/queue/dm-history`
-5. **DM 실시간**: `/topic/dm.{roomId}` (동적)
-</details>
+### 📋 현재 구독 구조
+1. **방 통합**: `/room/{roomCode}` - 방 히스토리와 실시간 통합
+2. **DM 통합**: `/topic/dm.{roomId}` - DM 히스토리와 실시간 통합 (동적 구독)
+3. **DM 알림**: `/user/queue/dm-notification` - DM 수신 알림
 
 ## 🛠️ 완전한 구현 예시
 
@@ -277,17 +452,17 @@ stompClient.connect({}, function(frame) {
     console.log('Connected: ' + frame);
 });
 
-function joinLecture() {
-    const lectureId = '1';
-    const userId = '123'; 
+function joinRoom() {
+    const roomCode = 'ABC123';
+    const userId = 123; 
     const userName = '김철수';
     const userRole = 'STUDENT';
     
-    // 필수 구독 4개 설정
-    // 1. 강의실 실시간 메시지
-    stompClient.subscribe(`/topic/lecture.${lectureId}`, function(message) {
-        const chatMessage = JSON.parse(message.body);
-        displayLectureMessage(chatMessage);
+    // 필수 구독 2개 설정
+    // 1. 방 통합 메시지 (히스토리 + 실시간)
+    stompClient.subscribe(`/room/${roomCode}`, function(message) {
+        const unifiedMessage = JSON.parse(message.body);
+        handleUnifiedMessage(unifiedMessage);
     });
     
     // 2. DM 알림
@@ -296,45 +471,38 @@ function joinLecture() {
         showDMNotification(data);
     });
     
-    // 3. DM 히스토리
-    stompClient.subscribe('/user/queue/dm-history', function(historyMsg) {
-        const history = JSON.parse(historyMsg.body);
-        loadDMHistory(history);
-    });
-    
-    // 4. 강의실 히스토리 (입장 직후 자동 수신)
-    stompClient.subscribe('/user/queue/lecture-history', function(historyMsg) {
-        const history = JSON.parse(historyMsg.body);
-        loadLectureHistory(history);
-    });
-    
-    // 강의실 입장 메시지 전송
-    stompClient.send('/app/lecture.join', {}, JSON.stringify({
-        lectureId: lectureId,
+    // 방 입장 메시지 전송
+    stompClient.send('/app/room.join', {}, JSON.stringify({
+        roomCode: roomCode,
         userId: userId,
         userName: userName, 
         userRole: userRole
     }));
 }
+
+// 통합 메시지 처리
+function handleUnifiedMessage(unifiedMessage) {
+    switch(unifiedMessage.type) {
+        case 'HISTORY_SYNC':
+            loadRoomHistory(unifiedMessage.data);
+            break;
+        case 'REALTIME_MESSAGE':
+            displayRealtimeMessage(unifiedMessage.data);
+            break;
+        case 'USER_JOIN':
+            displayJoinMessage(unifiedMessage.data);
+            break;
+        case 'USER_LEAVE':
+            displayLeaveMessage(unifiedMessage.data);
+            break;
+    }
+}
 ```
 
-#### 2. 메시지 순서 보장 시스템
+#### 2. 메시지 처리 시스템
 ```javascript
-// 실시간 메시지 처리 (큐잉 메커니즘)
-function displayLectureMessage(message) {
-    // 히스토리 로딩 중이면 큐에 저장
-    if (historyLoading) {
-        messageQueue.push(message);
-        return;
-    }
-    // 즉시 표시
-    displayMessageInternal(message);
-}
-
-// 히스토리 로드 (순서 보장)
-function loadLectureHistory(history) {
-    historyLoading = true; // 로딩 시작
-    
+// 히스토리 로드
+function loadRoomHistory(history) {
     // 기존 메시지 클리어
     clearMessages();
     
@@ -346,14 +514,20 @@ function loadLectureHistory(history) {
     sortedHistory.forEach(msg => {
         displayHistoryMessage(msg);
     });
-    
-    historyLoading = false; // 로딩 완료
-    
-    // 큐에 있던 실시간 메시지들 처리
-    messageQueue.forEach(queuedMessage => {
-        displayMessageInternal(queuedMessage);
-    });
-    messageQueue = []; // 큐 비우기
+}
+
+// 실시간 메시지 표시
+function displayRealtimeMessage(message) {
+    displayMessageInternal(message);
+}
+
+// 입장/퇴장 메시지 처리
+function displayJoinMessage(message) {
+    displaySystemMessage(`${message.senderName}님이 입장했습니다.`);
+}
+
+function displayLeaveMessage(message) {
+    displaySystemMessage(`${message.senderName}님이 퇴장했습니다.`);
 }
 ```
 
@@ -361,45 +535,47 @@ function loadLectureHistory(history) {
 ```javascript
 // 일반 채팅 메시지
 function sendMessage(content) {
-    stompClient.send('/app/lecture.send', {}, JSON.stringify({
-        lectureId: currentLectureId,
+    stompClient.send('/app/room.send', {}, JSON.stringify({
+        roomCode: currentRoomCode,
         senderId: currentUserId,
         senderName: currentUserName,
         content: content,
-        type: 'CHAT'
-    }));
-}
-
-// 공지사항 (INSTRUCTOR/TA만)
-function sendAnnouncement(content) {
-    stompClient.send('/app/lecture.send', {}, JSON.stringify({
-        lectureId: currentLectureId,
-        senderId: currentUserId,
-        senderName: currentUserName,
-        content: content,
-        type: 'ANNOUNCEMENT'
+        type: 'CHAT',
+        timestamp: new Date().toISOString()
     }));
 }
 ```
 
-#### 4. DM 기능
+#### 4. DM 기능 (통합 메시지 방식)
 ```javascript
-// DM 창 열기 (동적 구독)
+// DM 창 열기 (통합 구독)
 function openDM(targetUserId, targetUserName) {
     const roomId = generateDMRoomId(currentUserId, targetUserId);
     
-    // DM 방 구독
-    stompClient.subscribe(`/topic/dm.${roomId}`, function(dmMessage) {
-        const message = JSON.parse(dmMessage.body);
-        displayDMMessage(message);
+    // DM 통합 구독 (히스토리 + 실시간)
+    stompClient.subscribe(`/topic/dm.${roomId}`, function(message) {
+        const unifiedMessage = JSON.parse(message.body);
+        handleDMUnifiedMessage(unifiedMessage);
     });
     
     // DM 히스토리 요청
     stompClient.send('/app/dm.join', {}, JSON.stringify({
-        userId1: currentUserId,
-        userId2: targetUserId,
-        requesterId: currentUserId
+        userId1: currentUserId.toString(),
+        userId2: targetUserId.toString(),
+        requesterId: currentUserId.toString()
     }));
+}
+
+// DM 통합 메시지 처리
+function handleDMUnifiedMessage(unifiedMessage) {
+    switch(unifiedMessage.type) {
+        case 'DM_HISTORY_SYNC':
+            loadDMHistory(unifiedMessage.payload);
+            break;
+        case 'DM_REALTIME':
+            displayDMRealtime(unifiedMessage.payload);
+            break;
+    }
 }
 
 // DM 전송
@@ -420,7 +596,7 @@ function sendDM(content, receiverId, receiverName) {
 async function loadMoreHistory(page = 1) {
     try {
         const response = await fetch(
-            `/api/chat/lecture/history?lectureId=${currentLectureId}&page=${page}&size=50`
+            `/api/chat/room/history?roomCode=${currentRoomCode}&page=${page}&size=50`
         );
         const history = await response.json();
         prependHistoryMessages(history); // 위쪽에 추가
@@ -433,18 +609,18 @@ async function loadMoreHistory(page = 1) {
 ## 📝 핵심 특징 및 주의사항
 
 ### ✨ 핵심 특징
-1. **메시지 순서 보장**: 히스토리 로딩 중 실시간 메시지는 큐에 저장 후 순차 처리
-2. **WebSocket 기반 히스토리**: 입장과 동시에 최근 50개 메시지 자동 전송 
+1. **통합 메시지 시스템**: 히스토리와 실시간 메시지가 단일 채널로 통합
+2. **WebSocket 기반 히스토리**: 방 입장과 동시에 최근 50개 메시지 자동 전송 
 3. **동적 구독**: DM 방은 필요할 때만 구독하여 효율성 확보
 4. **실시간 알림**: DM 수신 시 즉시 알림 (창이 닫혀있어도)
-5. **권한 기반 기능**: 공지사항은 강사/TA만 전송 가능
+5. **간소화된 구독**: 필수 구독 2개로 간소화
 
 ### ⚠️ 주의사항
-1. **구독 순서**: 강의실 입장 전에 반드시 4개 필수 구독을 먼저 설정
+1. **구독 순서**: 방 입장 전에 반드시 필수 구독을 먼저 설정
 2. **히스토리 메커니즘**: 
-   - 기본 히스토리: WebSocket으로 자동 전송 (50개)
+   - 기본 히스토리: WebSocket으로 자동 전송 (50개, 통합 메시지)
    - 추가 히스토리: REST API로 페이징 조회 
-3. **메시지 순서**: `historyLoading` 플래그를 통한 큐잉 시스템 필수
+3. **메시지 타입 처리**: 통합 메시지의 타입에 따른 적절한 처리 필요
 4. **DM Room ID**: 사용자 ID를 정렬하여 생성 (`dm_{smaller}_{larger}`)
 5. **사용자 인증**: 현재는 단순 ID 기반 (실운영시 JWT 등 인증 구현 필요)
 6. **세션 관리**: WebSocket 연결 상태 관리 필수
@@ -452,10 +628,10 @@ async function loadMoreHistory(page = 1) {
 ### 🔄 실행 순서 (중요!)
 ```
 1. WebSocket 연결
-2. 4개 필수 구독 설정
-3. 강의실 입장 메시지 전송  
-4. 백엔드에서 히스토리 자동 전송
-5. 히스토리 로딩 완료 후 실시간 메시지 처리 시작
+2. 필수 구독 설정 (방 통합 채널 + DM 알림)
+3. 방 입장 메시지 전송  
+4. 백엔드에서 히스토리 자동 전송 (통합 메시지)
+5. 실시간 메시지 처리 시작
 ```
 
 ## 🔧 기술 스택

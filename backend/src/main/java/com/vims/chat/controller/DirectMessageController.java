@@ -33,7 +33,7 @@ public class DirectMessageController {
         directMessageService.sendDirectMessage(directMessage);
     }
 
-    // DM방 열기 (구독과 동시에 히스토리 로드)
+    // DM방 열기 (구독과 동시에 히스토리 로드) - 통합 메시지 방식으로 변경
     @MessageMapping("/dm.join")
     public void joinDmRoom(@Payload Map<String, String> joinRequest) {
         String userId1 = joinRequest.get("userId1");
@@ -43,17 +43,39 @@ public class DirectMessageController {
         log.info("WebSocket: User {} joining DM room with {}", requesterId, 
                 userId1.equals(requesterId) ? userId2 : userId1);
         
-        // DM 히스토리 로드하여 요청자에게 전송
+        // DM 히스토리 로드
         List<Message> dmHistory = directMessageService.getDirectMessageHistory(Integer.parseInt(userId1), Integer.parseInt(userId2), 0, 50);
         
+        // Room Chat처럼 통합 메시지로 히스토리 전송
         if (!dmHistory.isEmpty()) {
-            // 개별 사용자에게 DM 히스토리 전송
-            messagingTemplate.convertAndSendToUser(
-                requesterId,
-                "/queue/dm-history",
-                dmHistory
-            );
-            log.info("DM history loaded for user {}: {} messages", requesterId, dmHistory.size());
+            log.info("📤 Sending {} DM messages as unified history to room", dmHistory.size());
+            
+            try {
+                com.vims.chat.dto.UnifiedMessage historyMessage = 
+                    com.vims.chat.dto.UnifiedMessage.dmHistorySync(dmHistory);
+                
+                // DM 방에 히스토리 전송 (단일 채널 통합)
+                String roomId = generateDMRoomId(Integer.parseInt(userId1), Integer.parseInt(userId2));
+                messagingTemplate.convertAndSend(
+                    "/topic/dm." + roomId, 
+                    historyMessage
+                );
+                
+                log.info("✅ Sent unified DM history to room dm.{}", roomId);
+            } catch (Exception e) {
+                log.error("❌ Failed to send unified DM history: {}", e.getMessage());
+            }
+        } else {
+            log.warn("⚠️ No DM history found for users {} and {}", userId1, userId2);
+        }
+    }
+    
+    // DM Room ID 생성 (DirectMessage와 동일한 로직)
+    private String generateDMRoomId(int userId1, int userId2) {
+        if (userId1 < userId2) {
+            return userId1 + "_" + userId2;
+        } else {
+            return userId2 + "_" + userId1;
         }
     }
 
