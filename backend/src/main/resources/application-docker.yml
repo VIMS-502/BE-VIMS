@@ -46,6 +46,11 @@ spring:
           max-idle: 8
           min-idle: 0
 
+jwt:
+  secret: "ThisIsASecretKeyForvimsProject2025!@#123456"
+  expiration: 86400000
+  refresh-expiration: 604800000
+
 # Server Configuration
 server:
   port: 8080
