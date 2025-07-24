@@ -1,6 +1,7 @@
 package com.vims.user.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -12,7 +13,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @RequiredArgsConstructor
 public class EmailService {
-    private final JavaMailSender mailSender;
+
+    //정적으로 매핑되는 라이브러리를 인식하지 못하여 뜨는 에러 해결용
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
+    @Autowired
+    private JavaMailSender mailSender;
+
     private final Map<String, String> codeStorage = new ConcurrentHashMap<>();
     private final Map<String, Boolean> verifiedEmails = new ConcurrentHashMap<>();
 
