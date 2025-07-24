@@ -17,6 +17,8 @@ services:
       # - WEBRTC_TURN_URLS=turn:coturn:3478
       # - WEBRTC_TURN_USERNAME=turnuser
       # - WEBRTC_TURN_CREDENTIAL=turnpass
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
     depends_on:
       mysql:
         condition: service_healthy
