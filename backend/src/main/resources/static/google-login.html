@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>구글 로그인</title>
+</head>
+<body>
+    <h2>구글로 로그인</h2>
+    <!-- 구글 로그인 버튼 -->
+    <button id="google-login-btn">Google Login</button>
+    <script>
+        // TODO: 실제 발급받은 client_id로 교체하세요
+        const clientId = '45842556858-o14hkpalhlk5jqfljr9724qigdbjo6gf.apps.googleusercontent.com';
+        // 백엔드의 OAuth 엔드포인트로 리다이렉트
+        const redirectUri = 'http://localhost:8080/api/oauth/google/login';
+        const scope = 'openid email profile';
+
+        document.getElementById('google-login-btn').onclick = function() {
+            // 구글 인증 페이지로 이동
+            const url =
+                `https://accounts.google.com/o/oauth2/v2/auth?` +
+                `client_id=${clientId}` +
+                `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                `&response_type=code` +
+                `&scope=${encodeURIComponent(scope)}` +
+                `&access_type=offline`;
+            window.location.href = url;
+        };
+    </script>
+</body>
+</html> 

@@ -5,6 +5,7 @@ import com.vims.user.entity.OAuthProvider;
 import com.vims.user.entity.User;
 import com.vims.user.entity.UserRole;
 import com.vims.user.repository.UserRepository;
+import com.vims.user.config.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,6 +23,7 @@ public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
 
     // UserDetailsService 구현
     @Override
@@ -83,6 +85,27 @@ public class UserService implements UserDetailsService {
         }
 
         return convertToDto(user);
+    }
+
+    @Transactional
+    public String oauthLoginOrSignup(String email, String username, String oauthProvider, String oauthId, String profileImageUrl) {
+        // provider+oauthId로 먼저 조회
+        com.vims.user.entity.OAuthProvider providerEnum = com.vims.user.entity.OAuthProvider.valueOf(oauthProvider.toUpperCase());
+        User user = userRepository.findByOauthProviderAndOauthId(providerEnum, oauthId)
+                .orElseGet(() -> {
+                    // 없으면 회원가입
+                    User newUser = User.builder()
+                            .email(email)
+                            .username(username)
+                            .oauthProvider(providerEnum)
+                            .oauthId(oauthId)
+                            .profileImageUrl(profileImageUrl)
+                            .role(UserRole.GENERAL)
+                            .build();
+                    return userRepository.save(newUser);
+                });
+
+        return jwtTokenProvider.generateAccessToken(user);
     }
    
 }

@@ -157,9 +157,9 @@ CREATE TABLE IF NOT EXISTS course_students (
 -- 12. 샘플 사용자 추가
 INSERT INTO users (oauth_provider, oauth_id, username, email, profile_image_url, role, password_hash)
 VALUES 
-  ('google', 'oauth123', 'Alice', 'alice@example.com', '', 'GENERAL', 'hash1'),
-  ('kakao', 'oauth456', 'Bob', 'bob@example.com', '', 'GENERAL', 'hash2'),
-  ('naver', 'oauth789', 'Charlie', 'charlie@example.com', '', 'GUEST', NULL);
+  ('GOOGLE', 'oauth123', 'Alice', 'alice@example.com', '', 'GENERAL', 'hash1'),
+  ('LOCAL', 'oauth456', 'Bob', 'bob@example.com', '', 'GENERAL', 'hash2'),
+  ('GOOGLE', 'oauth789', 'Charlie', 'charlie@example.com', '', 'GUEST', NULL);
 
 -- 13. 샘플 룸 추가 (Alice, Bob이 방장)
 INSERT INTO rooms (title, description, room_code, host_user_id, max_participants, is_recording_enabled, is_open_to_everyone)

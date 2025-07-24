@@ -33,13 +33,25 @@ public class JwtTokenProvider {
     // Access Token 생성
     public String generateAccessToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, userDetails.getUsername(), jwtExpirationInMs);
+        Long userId = (userDetails instanceof com.vims.user.entity.User)
+            ? ((com.vims.user.entity.User) userDetails).getId()
+            : null;
+        if (userId == null) {
+            throw new IllegalArgumentException("UserDetails에서 userId를 찾을 수 없습니다.");
+        }
+        return createToken(claims, String.valueOf(userId), jwtExpirationInMs);
     }
 
     // Refresh Token 생성
     public String generateRefreshToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, userDetails.getUsername(), refreshTokenExpirationInMs);
+        Long userId = (userDetails instanceof com.vims.user.entity.User)
+            ? ((com.vims.user.entity.User) userDetails).getId()
+            : null;
+        if (userId == null) {
+            throw new IllegalArgumentException("UserDetails에서 userId를 찾을 수 없습니다.");
+        }
+        return createToken(claims, String.valueOf(userId), refreshTokenExpirationInMs);
     }
 
     // 토큰 생성
@@ -108,4 +120,9 @@ public class JwtTokenProvider {
         }
     }
 
+    // 토큰에서 userId(Long) 추출
+    public Long getUserIdFromToken(String token) {
+        String subject = getClaimFromToken(token, Claims::getSubject);
+        return Long.valueOf(subject);
+    }
 } 

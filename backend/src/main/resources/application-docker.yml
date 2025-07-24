@@ -3,6 +3,17 @@ spring:
     name: vims
   jackson:
     time-zone: Asia/Seoul
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: 45842556858-o14hkpalhlk5jqfljr9724qigdbjo6gf.apps.googleusercontent.com
+            client-secret: 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
+            scope:
+              - email
+              - profile
   
   # WebSocket Configuration
   websocket:
@@ -109,5 +120,13 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Google OAuth 설정 (백엔드 코드에서 참조)
+google:
+  client:
+    id: "${GOOGLE_CLIENT_ID}" # 구글 클라우드 콘솔에서 발급받은 client_id
+    secret: "${GOOGLE_CLIENT_SECRET}"
+  redirect:
+    uri: "http://localhost:8080/api/oauth/google/login" # 리다이렉트 URI (백엔드 엔드포인트와 일치)
 
 

@@ -61,3 +61,4 @@ logging:
     com.vims: DEBUG
     org.kurento: DEBUG
     org.springframework.web.socket: DEBUG
+

@@ -10,6 +10,8 @@
 </head>
 <body>
     <h1>회원가입 테스트</h1>
+    <!-- 구글 로그인 버튼 추가 -->
+    <button id="google-login-btn">Google Login</button>
     <form id="signupForm" action="http://localhost:8080/api/auth/signup" method="post">
         <div>
             <label>사용자명:</label>
@@ -34,12 +36,27 @@
             <label>비밀번호 확인:</label>
             <input type="password" id="confirmPassword" value="password123" required>
         </div>
-        <button type="submit" id="signupBtn" disabled>회원가입</button>
+        <button type="submit" id="signupBtn">회원가입</button>
     </form>
 
     <div id="result"></div>
 
     <script>
+        // 구글 로그인 스크립트
+        const clientId = '45842556858-o14hkpalhlk5jqfljr9724qigdbjo6gf.apps.googleusercontent.com';
+        const redirectUri = 'http://localhost:8080/api/oauth/google/login';
+        const scope = 'openid email profile';
+        document.getElementById('google-login-btn').onclick = function() {
+            const url =
+                `https://accounts.google.com/o/oauth2/v2/auth?` +
+                `client_id=${clientId}` +
+                `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                `&response_type=code` +
+                `&scope=${encodeURIComponent(scope)}` +
+                `&access_type=offline`;
+            window.location.href = url;
+        };
+
         let emailVerified = false;
 
         function sendCode() {

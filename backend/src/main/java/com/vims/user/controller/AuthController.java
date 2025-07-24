@@ -85,5 +85,25 @@ public class AuthController {
         }
     }
 
+    //이메일 코드 생성
+    @PostMapping("/send-code")
+    public ResponseEntity<?> sendCode(@RequestParam String email) {
+        emailService.sendVerificationCode(email);
+        return ResponseEntity.ok().build();
+    }
+
+
+    //이메일 코드 일치여부확인
+    @PostMapping("/verify-code")
+    public ResponseEntity<?> verifyCode(@RequestParam String email, @RequestParam String code) {
+        boolean result = emailService.verifyCode(email, code);
+        if (result) {
+
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.badRequest().body("인증코드가 일치하지 않습니다.");
+        }
+    }
+
 
 } 
