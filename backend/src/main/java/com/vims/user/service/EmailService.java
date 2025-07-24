@@ -1,9 +1,12 @@
 package com.vims.user.service;
 
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -26,12 +29,30 @@ public class EmailService {
         String code = generateSecureCode(6); // 6자리 영문+숫자 코드
         codeStorage.put(email, code);
 
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(email);
-        message.setSubject("이메일 인증 코드");
-        message.setText("인증코드: " + code);
+        try {
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
 
-        mailSender.send(message);
+            helper.setTo(email);
+            helper.setSubject("이메일 인증 코드");
+
+            // HTML 본문
+            String htmlContent = "" +
+                    "<div style='font-family:Arial,sans-serif; padding:20px;'>" +
+                    "<h2 style='color:#4CAF50;'>VIMS 이메일 인증</h2>" +
+                    "<p>아래 인증코드를 입력해 주세요:</p>" +
+                    "<div style='font-size:2em; font-weight:bold; background:#f4f4f4; padding:10px 20px; border-radius:8px; display:inline-block;'>" +
+                    code +
+                    "</div>" +
+                    "<p style='margin-top:20px;'>본 메일은 인증 요청에 의해 발송되었습니다.</p>" +
+                    "</div>";
+
+            helper.setText(htmlContent, true); // true = HTML
+
+            mailSender.send(mimeMessage);
+        } catch (Exception e) {
+            throw new RuntimeException("이메일 전송 실패", e);
+        }
     }
 
     public boolean verifyCode(String email, String code) {
