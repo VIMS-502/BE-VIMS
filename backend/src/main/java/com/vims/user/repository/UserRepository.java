@@ -19,4 +19,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     // 소셜 로그인: provider+oauthId로 사용자 찾기
     Optional<User> findByOauthProviderAndOauthId(com.vims.user.entity.OAuthProvider oauthProvider, String oauthId);
+
+    // 사용자아이디로 사용자 찾기
+    Optional<User> findById(Long id);
 }
