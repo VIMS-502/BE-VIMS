@@ -13,7 +13,7 @@ USE vims;
 -- 2. users
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    oauth_provider VARCHAR(50),
+    oauth_provider ENUM('GOOGLE', 'LOCAL'),
     oauth_id VARCHAR(255),
     username VARCHAR(100),
     email VARCHAR(255),
