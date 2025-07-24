@@ -27,7 +27,8 @@ public class User implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "oauth_provider", nullable = false)
-    private OAuthProvider oauthProvider;
+    @Builder.Default
+    private OAuthProvider oauthProvider = OAuthProvider.LOCAL;
 
     @Column(name = "oauth_id")
     private String oauthId;
