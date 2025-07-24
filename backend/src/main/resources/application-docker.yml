@@ -125,7 +125,6 @@ logging:
 google:
   client:
     id: "45842556858-o14hkpalhlk5jqfljr9724qigdbjo6gf.apps.googleusercontent.com" # 구글 클라우드 콘솔에서 발급받은 client_id
-    secret: "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" # 구글 클라우드 콘솔에서 발급받은 client_secret
   redirect:
     uri: "http://localhost:8080/api/oauth/google/login" # 리다이렉트 URI (백엔드 엔드포인트와 일치)
 
