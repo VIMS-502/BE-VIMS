@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.http.ResponseCookie;
 
-
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -24,10 +23,9 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
 
-
     // 회원가입
     @PostMapping("/signup")
-    public ResponseEntity<UserDto> signup(@Valid @RequestBody SignupRequest request) {
+    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest request) {
         if (!emailService.isEmailVerified(request.getEmail())) {
             return ResponseEntity.status(403).body(null); // 또는 적절한 메시지
         }
@@ -36,10 +34,10 @@ public class AuthController {
             emailService.clearEmailVerification(user.getEmail());
             return ResponseEntity.ok(user);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            log.warn("회원가입 실패: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-
 
     // 로그인
     @PostMapping("/login")
@@ -59,7 +57,7 @@ public class AuthController {
                     .secure(true)
                     .path("/")
                     .maxAge(3600)
-                    .sameSite("Strict")
+                    .sameSite("None")
                     .build();
 
             ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", refreshToken)
@@ -67,9 +65,8 @@ public class AuthController {
                     .secure(true)
                     .path("/")
                     .maxAge(604800)
-                    .sameSite("Strict")
+                    .sameSite("None")
                     .build();
-
 
             log.info("로그인 성공: {}", user.getEmail());
             log.info("accessToken: {}", accessToken);
@@ -85,15 +82,14 @@ public class AuthController {
         }
     }
 
-    //이메일 코드 생성
+    // 이메일 코드 생성
     @PostMapping("/send-code")
     public ResponseEntity<?> sendCode(@RequestParam String email) {
         emailService.sendVerificationCode(email);
         return ResponseEntity.ok().build();
     }
 
-
-    //이메일 코드 일치여부확인
+    // 이메일 코드 일치여부확인
     @PostMapping("/verify-code")
     public ResponseEntity<?> verifyCode(@RequestParam String email, @RequestParam String code) {
         boolean result = emailService.verifyCode(email, code);
@@ -105,5 +101,4 @@ public class AuthController {
         }
     }
 
-
-} 
+}

@@ -1,4 +1,4 @@
-package com.vims.webrtc.config;
+package com.vims.chat.config;
 
 import com.vims.chat.dto.RoomJoinMessage;
 import com.vims.chat.service.RoomChatService;

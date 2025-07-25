@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
+import com.vims.user.entity.User;
+
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
@@ -34,8 +36,8 @@ public class JwtTokenProvider {
     public String generateAccessToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         Long userId = (userDetails instanceof com.vims.user.entity.User)
-            ? ((com.vims.user.entity.User) userDetails).getId()
-            : null;
+                ? ((com.vims.user.entity.User) userDetails).getId()
+                : null;
         if (userId == null) {
             throw new IllegalArgumentException("UserDetails에서 userId를 찾을 수 없습니다.");
         }
@@ -46,8 +48,8 @@ public class JwtTokenProvider {
     public String generateRefreshToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         Long userId = (userDetails instanceof com.vims.user.entity.User)
-            ? ((com.vims.user.entity.User) userDetails).getId()
-            : null;
+                ? ((com.vims.user.entity.User) userDetails).getId()
+                : null;
         if (userId == null) {
             throw new IllegalArgumentException("UserDetails에서 userId를 찾을 수 없습니다.");
         }
@@ -99,8 +101,11 @@ public class JwtTokenProvider {
     // 토큰 유효성 검증
     public Boolean validateToken(String token, UserDetails userDetails) {
         try {
-            final String username = getUsernameFromToken(token);
-            return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+            final Long userIdFromToken = getUserIdFromToken(token);
+            final Long userId = (userDetails instanceof User)
+                    ? ((User) userDetails).getId()
+                    : null;
+            return userId != null && userId.equals(userIdFromToken) && !isTokenExpired(token);
         } catch (JwtException | IllegalArgumentException e) {
             log.error("JWT 토큰 검증 실패: {}", e.getMessage());
             return false;
@@ -109,10 +114,10 @@ public class JwtTokenProvider {
 
     public Boolean validateToken(String token) {
         try {
-            Jwts.parser()                    // parserBuilder() → parser()
-                    .verifyWith(secretKey)   // setSigningKey() → verifyWith()
+            Jwts.parser() // parserBuilder() → parser()
+                    .verifyWith(secretKey) // setSigningKey() → verifyWith()
                     .build()
-                    .parseSignedClaims(token);  // parseClaimsJws() → parseSignedClaims()
+                    .parseSignedClaims(token); // parseClaimsJws() → parseSignedClaims()
             return true;
         } catch (JwtException | IllegalArgumentException e) {
             log.error("JWT 토큰 검증 실패: {}", e.getMessage());
@@ -125,4 +130,4 @@ public class JwtTokenProvider {
         String subject = getClaimFromToken(token, Claims::getSubject);
         return Long.valueOf(subject);
     }
-} 
+}
