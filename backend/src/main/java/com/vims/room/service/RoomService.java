@@ -2,7 +2,7 @@ package com.vims.room.service;
 
 import com.vims.room.dto.CreateRoomRequest;
 import com.vims.room.dto.CreateRoomResponse;
-import com.vims.room.entity.Room;
+import com.vims.room.entity.RoomEntity;
 import com.vims.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +26,7 @@ public class RoomService {
         // 고유한 room_code 생성
         String roomCode = generateUniqueRoomCode();
         
-        Room room = new Room();
+        RoomEntity room = new RoomEntity();
         room.setTitle(request.getTitle());
         room.setDescription(request.getDescription());
         room.setRoomCode(roomCode);
@@ -39,7 +39,7 @@ public class RoomService {
         room.setIsOpenToEveryone(request.getIsOpenToEveryone());
         room.setCreatedAt(LocalDateTime.now());
         
-        Room savedRoom = roomRepository.save(room);
+        RoomEntity savedRoom = roomRepository.save(room);
         
         log.info("Room created: {} with code: {} by user: {}", savedRoom.getTitle(), roomCode, savedRoom.getHostUserId());
         
@@ -55,19 +55,19 @@ public class RoomService {
         );
     }
     
-    public Optional<Room> findByRoomCode(String roomCode) {
+    public Optional<RoomEntity> findByRoomCode(String roomCode) {
         return roomRepository.findByRoomCode(roomCode);
     }
     
-    public List<Room> getOpenRooms() {
+    public List<RoomEntity> getOpenRooms() {
         return roomRepository.findOpenRooms();
     }
     
-    public List<Room> getUserRooms(Long hostUserId) {
+    public List<RoomEntity> getUserRooms(Long hostUserId) {
         return roomRepository.findByHostUserId(hostUserId);
     }
     
-    public List<Room> searchRooms(String keyword) {
+    public List<RoomEntity> searchRooms(String keyword) {
         return roomRepository.findByTitleOrDescriptionContaining(keyword);
     }
     

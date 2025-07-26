@@ -39,9 +39,9 @@ dependencies {
 	// WebSocket STOMP 지원
 	implementation("org.springframework:spring-messaging")
 	
-	// Kurento Media Server 클라이언트 (일단 주석 처리)
-	// implementation("org.kurento:kurento-client:6.18.0")
-	// implementation("org.kurento:kurento-jsonrpc-client:6.18.0")
+	// Kurento Media Server 클라이언트
+	implementation("org.kurento:kurento-client:6.18.0")
+	implementation("org.kurento:kurento-jsonrpc-client:6.18.0")
 	
 	// 데이터베이스 (H2는 개발용, 실제로는 MySQL/PostgreSQL 사용 권장)
 	runtimeOnly("com.h2database:h2")

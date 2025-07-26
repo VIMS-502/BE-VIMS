@@ -11,7 +11,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(new com.vims.webrtc.config.SignalingHandler(), "/signaling")
+        registry.addHandler(new com.vims.webrtc.handler.SignalingHandler(), "/signaling")
                 .setAllowedOrigins("*");
     }
 }
