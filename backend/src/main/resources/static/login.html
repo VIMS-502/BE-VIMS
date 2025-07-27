@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VIMS 로그인</title>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 400px;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            text-align: center; 
+            color: #333; 
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .google-btn {
+            background-color: #4285f4;
+        }
+        .google-btn:hover {
+            background-color: #357ae8;
+        }
+        #result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .room-section {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .room-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .room-buttons button {
+            flex: 1;
+        }
+        .room-form {
+            display: none;
+            margin-top: 15px;
+        }
+        .room-form input, .room-form textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .room-form textarea {
+            resize: vertical;
+            height: 60px;
+        }
+        .datetime-group {
+            display: flex;
+            gap: 10px;
+        }
+        .datetime-group > div {
+            flex: 1;
+        }
+        .checkbox-group {
+            margin: 10px 0;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 5px;
+        }
+        .user-info {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VIMS 로그인</h1>
+        
+        <!-- 로그인 섹션 -->
+        <div id="loginSection">
+            <button id="google-login-btn" class="google-btn">Google Login</button>
+            
+            <hr style="margin: 20px 0;">
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>이메일:</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label>비밀번호:</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit">로그인</button>
+            </form>
+        </div>
+
+        <!-- 방 관리 섹션 -->
+        <div id="roomSection" class="room-section">
+            <div class="user-info">
+                <p>환영합니다, <span id="userName"></span>님!</p>
+            </div>
+            
+            <div class="room-buttons">
+                <button id="createRoomBtn">방 만들기</button>
+                <button id="joinRoomBtn">방 참가</button>
+            </div>
+
+            <!-- 방 만들기 폼 -->
+            <div id="createRoomForm" class="room-form">
+                <h3>방 만들기</h3>
+                <input type="text" id="roomTitle" placeholder="방 제목" required>
+                <textarea id="roomDescription" placeholder="방 설명 (선택사항)"></textarea>
+                <input type="number" id="maxParticipants" placeholder="최대 참가자 수" value="10" min="2" max="50">
+                <input type="password" id="roomPassword" placeholder="방 비밀번호 (선택사항)">
+                
+                <div class="datetime-group">
+                    <div>
+                        <label>시작 시간 (선택사항):</label>
+                        <input type="datetime-local" id="scheduledStartTime">
+                    </div>
+                    <div>
+                        <label>종료 시간 (선택사항):</label>
+                        <input type="datetime-local" id="scheduledEndTime">
+                    </div>
+                </div>
+                
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="isRecordingEnabled">
+                        녹화 활성화
+                    </label>
+                </div>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="isOpenToEveryone">
+                        모든 사용자에게 공개
+                    </label>
+                </div>
+                
+                <button type="button" onclick="createRoom()">방 생성</button>
+                <button type="button" onclick="hideCreateForm()">취소</button>
+            </div>
+
+            <!-- 방 참가 폼 -->
+            <div id="joinRoomForm" class="room-form">
+                <h3>방 참가</h3>
+                <input type="text" id="roomCode" placeholder="방 코드를 입력하세요" required>
+                <button type="button" onclick="joinRoom()">방 입장</button>
+                <button type="button" onclick="hideJoinForm()">취소</button>
+            </div>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // 구글 로그인 설정
+        const clientId = '45842556858-o14hkpalhlk5jqfljr9724qigdbjo6gf.apps.googleusercontent.com';
+        const redirectUri = 'http://localhost:8080/api/oauth/google/login';
+        const scope = 'openid email profile';
+
+        let currentUser = null;
+        let accessToken = null;
+
+        // 구글 로그인
+        document.getElementById('google-login-btn').onclick = function() {
+            const url =
+                `https://accounts.google.com/o/oauth2/v2/auth?` +
+                `client_id=${clientId}` +
+                `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                `&response_type=code` +
+                `&scope=${encodeURIComponent(scope)}` +
+                `&access_type=offline`;
+            window.location.href = url;
+        };
+
+        // 일반 로그인
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showMessage('로그인 성공!', 'success');
+                    onLoginSuccess(result);
+                } else {
+                    showMessage('로그인 실패: 이메일 또는 비밀번호를 확인해주세요.', 'error');
+                }
+            } catch (error) {
+                showMessage('네트워크 오류가 발생했습니다.', 'error');
+            }
+        });
+
+        // 로그인 성공 처리
+        function onLoginSuccess(authResponse) {
+            currentUser = authResponse.user;
+            accessToken = authResponse.accessToken;
+            
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('roomSection').style.display = 'block';
+            document.getElementById('userName').textContent = currentUser.username;
+        }
+
+        // 메시지 표시
+        function showMessage(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = message;
+            resultDiv.className = type;
+            resultDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                resultDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // 방 만들기 폼 표시
+        document.getElementById('createRoomBtn').onclick = function() {
+            document.getElementById('createRoomForm').style.display = 'block';
+            document.getElementById('joinRoomForm').style.display = 'none';
+        };
+
+        // 방 참가 폼 표시
+        document.getElementById('joinRoomBtn').onclick = function() {
+            document.getElementById('joinRoomForm').style.display = 'block';
+            document.getElementById('createRoomForm').style.display = 'none';
+        };
+
+        // 폼 숨기기
+        function hideCreateForm() {
+            document.getElementById('createRoomForm').style.display = 'none';
+        }
+
+        function hideJoinForm() {
+            document.getElementById('joinRoomForm').style.display = 'none';
+        }
+
+        // 방 생성
+        async function createRoom() {
+            const roomData = {
+                title: document.getElementById('roomTitle').value,
+                description: document.getElementById('roomDescription').value || null,
+                hostUserId: currentUser.id,
+                maxParticipants: parseInt(document.getElementById('maxParticipants').value) || 10,
+                password: document.getElementById('roomPassword').value || null,
+                isRecordingEnabled: document.getElementById('isRecordingEnabled').checked,
+                scheduledStartTime: document.getElementById('scheduledStartTime').value || null,
+                scheduledEndTime: document.getElementById('scheduledEndTime').value || null,
+                isOpenToEveryone: document.getElementById('isOpenToEveryone').checked
+            };
+
+            // 날짜 형식 변환
+            if (roomData.scheduledStartTime) {
+                roomData.scheduledStartTime = roomData.scheduledStartTime + ':00';
+            }
+            if (roomData.scheduledEndTime) {
+                roomData.scheduledEndTime = roomData.scheduledEndTime + ':00';
+            }
+
+            try {
+                const response = await fetch('/api/rooms/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify(roomData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showMessage(`방이 생성되었습니다! 방 코드: ${result.roomCode}`, 'success');
+                    hideCreateForm();
+                    
+                    // 자동으로 방에 입장 (index.html로 이동)
+                    window.location.href = `index.html?room=${result.roomCode}&token=${accessToken}&username=${encodeURIComponent(currentUser.username)}`;
+                } else {
+                    const errorText = await response.text();
+                    showMessage(`방 생성 실패: ${errorText}`, 'error');
+                }
+            } catch (error) {
+                showMessage('방 생성 중 오류가 발생했습니다.', 'error');
+            }
+        }
+
+        // 방 참가
+        function joinRoom() {
+            const roomCode = document.getElementById('roomCode').value.trim();
+            if (!roomCode) {
+                showMessage('방 코드를 입력해주세요.', 'error');
+                return;
+            }
+            
+            // 직접 index.html로 이동
+            window.location.href = `index.html?room=${roomCode}&token=${accessToken}&username=${encodeURIComponent(currentUser.username)}`;
+        }
+    </script>
+</body>
+</html>
