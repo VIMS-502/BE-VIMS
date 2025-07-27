@@ -28,7 +28,6 @@
 
 <div class="controls">
     <input id="roomInput" placeholder="방 이름" value="testRoom">
-    <input id="nameInput" placeholder="사용자 이름">
     <button id="joinBtn" onclick="joinRoom()">방 참가</button>
     <button id="startVideoBtn" onclick="startVideo()" disabled>비디오 시작</button>
     <button id="leaveBtn" onclick="leaveRoom()" disabled>방 나가기</button>
@@ -59,33 +58,19 @@
         startBtn = document.getElementById('startVideoBtn'),
         leaveBtn = document.getElementById('leaveBtn');
 
-    // URL 파라미터에서 room, token, username 확인
+    // URL 파라미터에서 room과 token 확인
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
     const tokenFromUrl = urlParams.get('token');
-    const usernameFromUrl = urlParams.get('username');
     
     if (roomFromUrl && tokenFromUrl) {
         // URL에서 room과 token이 있으면 자동으로 방 입장
         document.getElementById('roomInput').value = roomFromUrl;
         
-        // URL에서 username 사용, 없으면 JWT에서 추출
-        if (usernameFromUrl) {
-            document.getElementById('nameInput').value = decodeURIComponent(usernameFromUrl);
-        } else {
-            try {
-                const tokenPayload = JSON.parse(atob(tokenFromUrl.split('.')[1]));
-                const userId = tokenPayload.sub;
-                document.getElementById('nameInput').value = userId;
-            } catch (e) {
-                document.getElementById('nameInput').value = 'user'+Math.floor(Math.random()*1000);
-            }
-        }
-        
         // 페이지 로드 후 자동으로 방 참가
         setTimeout(async () => {
             currentRoom = roomFromUrl;
-            currentUser = document.getElementById('nameInput').value;
+            currentUser = 'authenticated'; // 토큰으로 인증된 사용자
             connectWSWithToken(tokenFromUrl);
             
             // 자동으로 비디오 시작
@@ -95,9 +80,6 @@
                 }
             }, 2000);
         }, 1000);
-    } else {
-        // 자동 사용자 이름
-        document.getElementById('nameInput').value = 'user'+Math.floor(Math.random()*1000);
     }
 
     function log(msg){
@@ -188,27 +170,48 @@
     function handleMessage(m){
         switch(m.type){
             case 'joinedRoom': onJoined(m); break;
-            case 'existingParticipant': addParticipant(m.name,false); break;
+            case 'existingParticipant': 
+                addParticipant(m.name,false); 
+                if(localStream) {
+                    log(`기존 참가자 ${m.name}의 비디오 수신 시작`);
+                    setTimeout(()=>receiveVideo(m.name), 1000);
+                }
+                break;
             case 'newParticipantArrived': addParticipant(m.name,false); break;
             case 'participantLeft': removeParticipant(m.name); break;
             case 'publishVideoAnswer': onPublishAnswer(m); break;
             case 'receiveVideoAnswer': onReceiveAnswer(m); break;
             case 'iceCandidate': onRemoteIce(m); break;
-            case 'videoAvailable': if(localStream) setTimeout(()=>receiveVideo(m.name),500); break;
+            case 'videoAvailable': 
+                if(localStream) {
+                    log(`${m.name}의 비디오 사용 가능 - 수신 시작`);
+                    setTimeout(()=>receiveVideo(m.name),500); 
+                }
+                break;
+            case 'error':
+                log(`서버 오류: ${m.message}`);
+                break;
         }
     }
 
     function joinRoom(){
         const room = document.getElementById('roomInput').value.trim();
-        const name = document.getElementById('nameInput').value.trim();
-        if(!room||!name){ alert('입력해주세요'); return; }
-        currentRoom=room; currentUser=name;
+        if(!room){ alert('방 이름을 입력해주세요'); return; }
+        currentRoom=room; currentUser='manual'; // 수동 입장
         connectWS();
-        socket.onopen = ()=> sendMessage({type:'joinRoom',room,name});
+        socket.onopen = ()=> sendMessage({type:'joinRoom',room});
     }
 
     function onJoined(m){
         log('방참가 '+m.room);
+        
+        // 서버에서 실제 사용자 이름을 받은 경우 업데이트
+        if (m.userName) {
+            currentUser = m.userName;
+            log('서버에서 받은 사용자 이름으로 업데이트: ' + currentUser);
+        }
+        
+        log('현재 사용자: ' + currentUser);
         updateStatus('방참가');
         joinBtn.disabled=true; startBtn.disabled=false; leaveBtn.disabled=false;
         addParticipant(currentUser,true);
@@ -264,6 +267,13 @@
 
     async function receiveVideo(name){
         if(name===currentUser) return;
+        
+        // 참가자가 존재하지 않으면 추가
+        if (!participants[name]) {
+            log(`${name} 참가자 정보가 없어 추가합니다`);
+            addParticipant(name, false);
+        }
+        
         if(participants[name].pc){ participants[name].pc.close(); }
         const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
         participants[name].pc=pc;
@@ -306,8 +316,31 @@
     }
 
     function onRemoteIce(m){
-        const pc = (m.name===currentUser? publishPc : participants[m.name]?.pc);
-        pc && pc.addIceCandidate(new RTCIceCandidate(m.candidate));
+        if (m.name === currentUser) {
+            // 자신의 ICE candidate
+            if (publishPc && publishPc.remoteDescription) {
+                publishPc.addIceCandidate(new RTCIceCandidate(m.candidate)).catch(e => {
+                    log(`자신의 ICE candidate 추가 실패: ${e.message}`);
+                });
+            } else {
+                log(`자신의 ICE candidate 대기 중: publish PC 또는 remote description 없음`);
+            }
+        } else {
+            // 다른 참가자의 ICE candidate
+            if (!participants[m.name]) {
+                log(`${m.name} 참가자 정보가 없어 ICE candidate 무시`);
+                return;
+            }
+            
+            const pc = participants[m.name].pc;
+            if (pc && pc.remoteDescription) {
+                pc.addIceCandidate(new RTCIceCandidate(m.candidate)).catch(e => {
+                    log(`ICE candidate 추가 실패 (${m.name}): ${e.message}`);
+                });
+            } else {
+                log(`ICE candidate 대기 중 (${m.name}): PC 또는 remote description 없음`);
+            }
+        }
     }
 
     // 비디오 엘리먼트 생성

@@ -342,7 +342,7 @@
                     hideCreateForm();
                     
                     // 자동으로 방에 입장 (index.html로 이동)
-                    window.location.href = `index.html?room=${result.roomCode}&token=${accessToken}&username=${encodeURIComponent(currentUser.username)}`;
+                    window.location.href = `index.html?room=${result.roomCode}&token=${accessToken}`;
                 } else {
                     const errorText = await response.text();
                     showMessage(`방 생성 실패: ${errorText}`, 'error');
@@ -361,7 +361,7 @@
             }
             
             // 직접 index.html로 이동
-            window.location.href = `index.html?room=${roomCode}&token=${accessToken}&username=${encodeURIComponent(currentUser.username)}`;
+            window.location.href = `index.html?room=${roomCode}&token=${accessToken}`;
         }
     </script>
 </body>

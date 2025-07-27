@@ -148,6 +148,7 @@ public class SignalingHandler extends TextWebSocketHandler {
         JsonObject joinedResponse = new JsonObject();
         joinedResponse.addProperty("type", "joinedRoom");
         joinedResponse.addProperty("room", roomName);
+        joinedResponse.addProperty("userName", userName); // 실제 사용자 이름 추가
         session.sendMessage(new TextMessage(gson.toJson(joinedResponse)));
 
         System.out.println(userName + "이 " + roomName + " 방에 입장했습니다.");
