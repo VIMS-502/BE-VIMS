@@ -11,6 +11,7 @@ public class UserSession {
     private final String userName;
     private final WebSocketSession webSocketSession;
     private String roomName;
+    private Long userId; // JWT 인증으로 얻은 userId 추가
     
     // 송신용 (클라이언트 → 서버)
     private WebRtcEndpoint outgoingMedia;
@@ -38,6 +39,8 @@ public class UserSession {
     public WebSocketSession getWebSocketSession() { return webSocketSession; }
     public String getRoomName() { return roomName; }
     public void setRoomName(String roomName) { this.roomName = roomName; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
     public WebRtcEndpoint getOutgoingMedia() { return outgoingMedia; }
     public void setOutgoingMedia(WebRtcEndpoint outgoingMedia) { this.outgoingMedia = outgoingMedia; }
     public ConcurrentMap<String, WebRtcEndpoint> getIncomingMedia() { return incomingMedia; }

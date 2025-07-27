@@ -80,15 +80,28 @@ public class SignalingHandler extends TextWebSocketHandler {
             return;
         }
 
+        // 세션에서 인증된 사용자 정보 가져오기
+        Long userId = (Long) session.getAttributes().get("userId");
+        String userName = (String) session.getAttributes().get("userName");
+        
+        if (userId == null || userName == null) {
+            JsonObject errorResponse = new JsonObject();
+            errorResponse.addProperty("type", "error");
+            errorResponse.addProperty("message", "인증되지 않은 사용자입니다.");
+            session.sendMessage(new TextMessage(gson.toJson(errorResponse)));
+            return;
+        }
+
         String roomName = jsonMessage.get("room").getAsString();
-        String userName = jsonMessage.get("name").getAsString();
 
         System.out.println("=== 방 참가 디버그 ===");
         System.out.println("세션 ID: " + session.getId());
-        System.out.println("사용자 이름: " + userName);
+        System.out.println("인증된 사용자 ID: " + userId);
+        System.out.println("인증된 사용자 이름: " + userName);
         System.out.println("방 이름: " + roomName);
 
         UserSession user = new UserSession(session.getId(), userName, session);
+        user.setUserId(userId); // userId 추가 설정
         sessions.put(session.getId(), user);
 
         Room room = rooms.get(roomName);
