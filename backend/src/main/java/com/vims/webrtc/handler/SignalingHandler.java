@@ -2,8 +2,8 @@ package com.vims.webrtc.handler;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.vims.webrtc.domail.Room;
-import com.vims.webrtc.domail.UserSession;
+import com.vims.webrtc.domain.Room;
+import com.vims.webrtc.domain.UserSession;
 
 import org.kurento.client.*;
 import org.springframework.beans.factory.annotation.Autowired;
