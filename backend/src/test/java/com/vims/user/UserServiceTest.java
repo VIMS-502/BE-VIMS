@@ -76,10 +76,12 @@ public class UserServiceTest {
         request2.setPassword("testpassword123!");
         request2.setConfirmPassword("testpassword123!");
 
-        // 첫 번째 회원가입은 성공
+        //when
         userService.signup(request1);
 
-        // 두 번째 회원가입은 예외 발생해야 함
+        //매 테스트마다 객체를 새로 생성하기 때문에 회원가입을 두번진행해줘야 알수있음
+
+        //then
         IllegalArgumentException exception = assertThrows(
             IllegalArgumentException.class,
             () -> userService.signup(request2)
