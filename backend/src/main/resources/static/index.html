@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kurento WebRTC 화상회의 (로컬 테스트용)</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .video-container { display: grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap: 20px; margin: 20px 0; }
+        video { width: 100%; max-width: 320px; border:2px solid #ccc; border-radius:8px; }
+        .controls { margin:20px 0; }
+        button { padding:8px 16px; margin:4px; }
+        .status, .connection-info { padding:10px; background:#f0f0f0; border-radius:4px; margin:8px 0; }
+    </style>
+</head>
+<body>
+<h1>Kurento WebRTC 화상회의 (로컬 테스트)</h1>
+
+<div class="status">
+    <p id="status">상태: 대기 중</p>
+    <p id="connectionState">WebSocket: 연결 안됨</p>
+    <p id="rtcState">WebRTC: 연결 안됨</p>
+    <div id="connectionInfo" class="connection-info" style="display:none">
+        <strong>연결 정보</strong>
+        <div id="participantCount">참가자: 0명</div>
+        <div id="videoStreams">활성 비디오: 0개</div>
+    </div>
+</div>
+
+<div class="controls">
+    <input id="roomInput" placeholder="방 이름" value="testRoom">
+    <button id="joinBtn" onclick="joinRoom()">방 참가</button>
+    <button id="startVideoBtn" onclick="startVideo()" disabled>비디오 시작</button>
+    <button id="leaveBtn" onclick="leaveRoom()" disabled>방 나가기</button>
+    <button onclick="debugConnections()">상태 디버그</button>
+    <button onclick="testReceiveVideoAnswer()">강제 receiveVideoAnswer</button>
+</div>
+
+<div class="video-container" id="videoContainer"></div>
+
+<div>
+    <h3>로그</h3>
+    <div id="logs" style="height:200px;overflow-y:auto;background:#fafafa;border:1px solid #ddd;padding:8px;"></div>
+</div>
+
+<script>
+    let socket, localStream, publishPc;
+    let participants = {}, currentRoom, currentUser;
+
+    const statusEl = document.getElementById('status'),
+        wsStateEl = document.getElementById('connectionState'),
+        rtcStateEl = document.getElementById('rtcState'),
+        infoEl = document.getElementById('connectionInfo'),
+        partCountEl = document.getElementById('participantCount'),
+        vidCountEl = document.getElementById('videoStreams'),
+        logsEl = document.getElementById('logs'),
+        videoContainer = document.getElementById('videoContainer'),
+        joinBtn = document.getElementById('joinBtn'),
+        startBtn = document.getElementById('startVideoBtn'),
+        leaveBtn = document.getElementById('leaveBtn');
+
+    // URL 파라미터에서 room과 token 확인
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomFromUrl = urlParams.get('room');
+    const tokenFromUrl = urlParams.get('token');
+    
+    if (roomFromUrl && tokenFromUrl) {
+        // URL에서 room과 token이 있으면 자동으로 방 입장
+        document.getElementById('roomInput').value = roomFromUrl;
+        
+        // 페이지 로드 후 자동으로 방 참가
+        setTimeout(async () => {
+            currentRoom = roomFromUrl;
+            currentUser = 'authenticated'; // 토큰으로 인증된 사용자
+            connectWSWithToken(tokenFromUrl);
+            
+            // 자동으로 비디오 시작
+            setTimeout(async () => {
+                if (socket && socket.readyState === 1) {
+                    await startVideo();
+                }
+            }, 2000);
+        }, 1000);
+    }
+
+    function log(msg){
+        const t = new Date().toLocaleTimeString();
+        logsEl.innerHTML += '['+t+'] '+msg+'<br>';
+        logsEl.scrollTop = logsEl.scrollHeight;
+        console.log(msg);
+    }
+
+    function updateStatus(s){ statusEl.textContent = '상태: '+s; }
+    function updateWS(s){ wsStateEl.textContent='WebSocket: '+s; }
+    function updateRTC(s){ rtcStateEl.textContent='WebRTC: '+s; }
+    function updateInfo(){
+        const p = Object.keys(participants).length;
+        const v = Object.values(participants).filter(x=>x.hasVideo).length;
+        partCountEl.textContent='참가자: '+p+'명';
+        vidCountEl.textContent='활성 비디오: '+v+'개';
+        infoEl.style.display = p>0?'block':'none';
+    }
+
+    function debugConnections(){
+        log('=== 디버그 시작 ===');
+        log('방: '+currentRoom+', 사용자: '+currentUser);
+        for(const name in participants){
+            const p = participants[name];
+            log(name+' → hasVideo:'+p.hasVideo+', pc:'+(p.pc? p.pc.connectionState : '없음'));
+        }
+        if(publishPc) log('Publish PC: '+publishPc.connectionState);
+        log('=== 디버그 끝 ===');
+    }
+
+    // WS 연결 (토큰 없이)
+    function connectWS(){
+        socket = new WebSocket('ws://localhost:8080/signaling');
+        socket.onopen = ()=>{
+            log('WS 연결됨'); updateWS('연결됨');
+        };
+        socket.onmessage = evt=>{
+            log('RAW 수신: '+evt.data);
+            let msg;
+            try {
+                msg = JSON.parse(evt.data);
+            } catch(e){
+                return log('파싱 오류');
+            }
+            log('수신: '+msg.type);
+            if(msg.type==='receiveVideoAnswer')
+                log('▶ receiveVideoAnswer '+msg.name);
+            handleMessage(msg);
+        };
+        socket.onerror = ()=>{ log('WS 오류'); updateWS('오류'); };
+        socket.onclose = ()=>{ log('WS 종료'); updateWS('끊김'); };
+    }
+
+    // WS 연결 (토큰 사용)
+    function connectWSWithToken(token){
+        socket = new WebSocket(`ws://localhost:8080/signaling?token=${token}`);
+        socket.onopen = ()=>{
+            log('WS 연결됨 (토큰 인증)'); updateWS('연결됨');
+            // 연결 후 자동으로 방 참가
+            sendMessage({type:'joinRoom', room: currentRoom});
+        };
+        socket.onmessage = evt=>{
+            log('RAW 수신: '+evt.data);
+            let msg;
+            try {
+                msg = JSON.parse(evt.data);
+            } catch(e){
+                return log('파싱 오류');
+            }
+            log('수신: '+msg.type);
+            if(msg.type==='receiveVideoAnswer')
+                log('▶ receiveVideoAnswer '+msg.name);
+            handleMessage(msg);
+        };
+        socket.onerror = ()=>{ log('WS 오류'); updateWS('오류'); };
+        socket.onclose = ()=>{ log('WS 종료'); updateWS('끊김'); };
+    }
+
+    function sendMessage(m){
+        if(socket && socket.readyState===1){
+            socket.send(JSON.stringify(m));
+            log('송신: '+m.type);
+        }
+    }
+
+    // 메시지 분기
+    function handleMessage(m){
+        switch(m.type){
+            case 'joinedRoom': onJoined(m); break;
+            case 'existingParticipant': 
+                addParticipant(m.name,false); 
+                if(localStream) {
+                    log(`기존 참가자 ${m.name}의 비디오 수신 시작`);
+                    setTimeout(()=>receiveVideo(m.name), 1000);
+                }
+                break;
+            case 'newParticipantArrived': addParticipant(m.name,false); break;
+            case 'participantLeft': removeParticipant(m.name); break;
+            case 'publishVideoAnswer': onPublishAnswer(m); break;
+            case 'receiveVideoAnswer': onReceiveAnswer(m); break;
+            case 'iceCandidate': onRemoteIce(m); break;
+            case 'videoAvailable': 
+                if(localStream) {
+                    log(`${m.name}의 비디오 사용 가능 - 수신 시작`);
+                    setTimeout(()=>receiveVideo(m.name),500); 
+                }
+                break;
+            case 'error':
+                log(`서버 오류: ${m.message}`);
+                break;
+        }
+    }
+
+    function joinRoom(){
+        const room = document.getElementById('roomInput').value.trim();
+        if(!room){ alert('방 이름을 입력해주세요'); return; }
+        currentRoom=room; currentUser='manual'; // 수동 입장
+        connectWS();
+        socket.onopen = ()=> sendMessage({type:'joinRoom',room});
+    }
+
+    function onJoined(m){
+        log('방참가 '+m.room);
+        
+        // 서버에서 실제 사용자 이름을 받은 경우 업데이트
+        if (m.userName) {
+            currentUser = m.userName;
+            log('서버에서 받은 사용자 이름으로 업데이트: ' + currentUser);
+        }
+        
+        log('현재 사용자: ' + currentUser);
+        updateStatus('방참가');
+        joinBtn.disabled=true; startBtn.disabled=false; leaveBtn.disabled=false;
+        addParticipant(currentUser,true);
+    }
+
+    function addParticipant(name,isLocal){
+        if(participants[name]) return;
+        participants[name]={pc:null,hasVideo:false,isLocal};
+        updateInfo();
+    }
+
+    function removeParticipant(name){
+        log('퇴장 '+name);
+        const w = document.getElementById('wrapper-'+name);
+        if(w) w.remove();
+        if(participants[name] && participants[name].pc)
+            participants[name].pc.close();
+        delete participants[name];
+        updateInfo();
+    }
+
+    async function startVideo(){
+        try {
+            updateStatus('카메라');
+            localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+            createVideo(currentUser,localStream,true);
+            participants[currentUser].hasVideo=true;
+            updateInfo();
+            await publish();
+            startBtn.disabled=true; updateStatus('스트리밍');
+        } catch(e){
+            log('getUserMedia 실패');
+        }
+    }
+
+    async function publish(){
+        publishPc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+        publishPc.onicecandidate = e=>e.candidate && sendMessage({type:'onIceCandidate',name:currentUser,candidate:e.candidate});
+        publishPc.onconnectionstatechange = ()=>updateRTC(publishPc.connectionState);
+        localStream.getTracks().forEach(t=>publishPc.addTrack(t,localStream));
+        const offer = await publishPc.createOffer();
+        await publishPc.setLocalDescription(offer);
+        sendMessage({type:'publishVideo',sdpOffer:offer.sdp});
+    }
+
+    async function onPublishAnswer(m){
+        await publishPc.setRemoteDescription({type:'answer',sdp:m.sdpAnswer});
+        // 기존 참가자 자동 수신
+        for(const name in participants){
+            if(name!==currentUser) receiveVideo(name);
+        }
+    }
+
+    async function receiveVideo(name){
+        if(name===currentUser) return;
+        
+        // 참가자가 존재하지 않으면 추가
+        if (!participants[name]) {
+            log(`${name} 참가자 정보가 없어 추가합니다`);
+            addParticipant(name, false);
+        }
+        
+        if(participants[name].pc){ participants[name].pc.close(); }
+        const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+        participants[name].pc=pc;
+        pc.onicecandidate = e=>e.candidate && sendMessage({type:'onIceCandidate',name,candidate:e.candidate});
+        pc.ontrack = e=>{
+            log(`${name}의 비디오 트랙 수신됨 - 종류: ${e.track.kind}, 활성화: ${e.track.enabled}, 음소거: ${e.track.muted}`);
+            console.log('Received track:', e.track, 'Streams:', e.streams);
+            
+            // 트랙 강제 활성화
+            if (e.track.kind === 'video') {
+                e.track.enabled = true;
+                log(`${name}의 비디오 트랙 강제 활성화`);
+            }
+            
+            if (e.streams && e.streams[0]) {
+                const stream = e.streams[0];
+                log(`${name}의 스트림 정보 - 트랙 수: ${stream.getTracks().length}`);
+                stream.getTracks().forEach(track => {
+                    log(`트랙: ${track.kind}, 활성화: ${track.enabled}, 음소거: ${track.muted}`);
+                });
+                
+                createVideo(name, stream, false);
+                participants[name].hasVideo=true;
+                updateInfo();
+                log(`${name}의 비디오 표시 완료`);
+            } else {
+                log(`${name}의 스트림이 없음`);
+            }
+        };
+        pc.onconnectionstatechange = ()=> log(name+' conn:'+pc.connectionState);
+        const offer = await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:true});
+        await pc.setLocalDescription(offer);
+        sendMessage({type:'receiveVideoFrom',sender:name,sdpOffer:offer.sdp});
+    }
+
+    async function onReceiveAnswer(m){
+        const pc = participants[m.name].pc;
+        await pc.setRemoteDescription({type:'answer',sdp:m.sdpAnswer});
+        log(m.name+' 수신셋업 완료');
+    }
+
+    function onRemoteIce(m){
+        if (m.name === currentUser) {
+            // 자신의 ICE candidate
+            if (publishPc && publishPc.remoteDescription) {
+                publishPc.addIceCandidate(new RTCIceCandidate(m.candidate)).catch(e => {
+                    log(`자신의 ICE candidate 추가 실패: ${e.message}`);
+                });
+            } else {
+                log(`자신의 ICE candidate 대기 중: publish PC 또는 remote description 없음`);
+            }
+        } else {
+            // 다른 참가자의 ICE candidate
+            if (!participants[m.name]) {
+                log(`${m.name} 참가자 정보가 없어 ICE candidate 무시`);
+                return;
+            }
+            
+            const pc = participants[m.name].pc;
+            if (pc && pc.remoteDescription) {
+                pc.addIceCandidate(new RTCIceCandidate(m.candidate)).catch(e => {
+                    log(`ICE candidate 추가 실패 (${m.name}): ${e.message}`);
+                });
+            } else {
+                log(`ICE candidate 대기 중 (${m.name}): PC 또는 remote description 없음`);
+            }
+        }
+    }
+
+    // 비디오 엘리먼트 생성
+    function createVideo(name, stream, muted){
+        let w = document.getElementById('wrapper-'+name);
+        if(w) w.remove();
+        w = document.createElement('div'); w.id='wrapper-'+name; w.className='video-wrapper';
+        const v = document.createElement('video');
+        v.id='video-'+name; v.autoplay=true; v.playsInline=true; v.muted=muted;
+        v.srcObject = stream;
+        
+        // 비디오 로드 이벤트 처리
+        v.onloadedmetadata = () => {
+            log(`${name}의 비디오 메타데이터 로드됨`);
+            v.play().catch(e => log(`${name} 비디오 재생 실패: ${e.message}`));
+        };
+        
+        v.oncanplay = () => {
+            log(`${name}의 비디오 재생 준비 완료`);
+        };
+        
+        v.onerror = (e) => {
+            log(`${name}의 비디오 오류: ${e.message || '알 수 없는 오류'}`);
+        };
+        
+        const lbl = document.createElement('h4');
+        lbl.textContent = name+(muted?' (나)':'');
+        w.appendChild(lbl); w.appendChild(v);
+        videoContainer.appendChild(w);
+        
+        log(`${name}의 비디오 엘리먼트 생성 완료`);
+    }
+
+    // 강제 테스트
+    function testReceiveVideoAnswer(){
+        const other = Object.keys(participants).find(n=>n!==currentUser);
+        if(!other){ log('수신 대상 없음'); return; }
+        handleMessage({type:'receiveVideoAnswer',name:other,sdpAnswer:'v=0\r\no=- 0 0 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\n'});
+    }
+
+    // 방 나가기
+    function leaveRoom(){
+        sendMessage({type:'leaveRoom'});
+        if(publishPc) publishPc.close();
+        for(const n in participants) participants[n].pc && participants[n].pc.close();
+        localStream && localStream.getTracks().forEach(t=>t.stop());
+        socket.close();
+        participants={}; videoContainer.innerHTML='';
+        joinBtn.disabled=false; startBtn.disabled=true; leaveBtn.disabled=true;
+        updateStatus('나감'); updateWS('끊김'); updateRTC('끊김');
+        updateInfo();
+    }
+
+    window.onbeforeunload = leaveRoom;
+    window.onload = ()=>updateStatus('준비됨');
+</script>
+
+</body>
+</html>

@@ -8,24 +8,31 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/vims
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/vims?serverTimezone=Asia/Seoul
       - SPRING_DATASOURCE_USERNAME=vims
       - SPRING_DATASOURCE_PASSWORD=vimspass
       - SPRING_DATA_REDIS_HOST=redis
       - KURENTO_WS_URI=ws://kurento:8888/kurento
-      # - WEBRTC_STUN_URLS=stun:coturn:3478
-      # - WEBRTC_TURN_URLS=turn:coturn:3478
-      # - WEBRTC_TURN_USERNAME=turnuser
-      # - WEBRTC_TURN_CREDENTIAL=turnpass
+      # STUN/TURN 정보 (Spring에서도 쓰고 싶으면 여기 넣어도 됨)
+      - WEBRTC_STUN_URLS=stun:coturn:3478
+      - WEBRTC_TURN_URLS=turn:coturn:3478
+      - WEBRTC_TURN_USERNAME=testuser
+      - WEBRTC_TURN_CREDENTIAL=testpass
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
     depends_on:
-      - mysql
-      - redis
-      - kurento
-      # - coturn
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kurento:
+        condition: service_started
+      coturn:
+        condition: service_started
     networks:
       - vims-network
 
-  # MySQL Database (이 부분도 추가해야 합니다)
+  # MySQL Database
   mysql:
     image: mysql:8.0
     environment:
@@ -33,20 +40,25 @@ services:
       MYSQL_DATABASE: vims
       MYSQL_USER: vims
       MYSQL_PASSWORD: vimspass
+      TZ: Asia/Seoul
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     networks:
       - vims-network
 
-  # Redis Stack for session management, caching, and vector embeddings
+  # Redis for session management and caching
   redis:
-    image: redis/redis-stack:latest
+    image: redis:latest
     ports:
       - "6379:6379"
-      - "8001:8001"  # RedisInsight web UI
     volumes:
       - redis_data:/data
     environment:
@@ -54,14 +66,38 @@ services:
     networks:
       - vims-network
 
-  # Kurento Media Server (올바른 들여쓰기)
+  # Coturn Server (STUN/TURN)
+  coturn:
+    image: coturn/coturn:latest
+    container_name: coturn-server
+    command: >
+      turnserver
+      --user=testuser:testpass
+      --realm=localhost
+      --fingerprint
+      --verbose
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      - "49152-49200:49152-49200/udp"
+    networks:
+      - vims-network
+
+  # Kurento Media Server
   kurento:
     image: kurento/kurento-media-server:latest
     ports:
       - "8888:8888"
+    environment:
+      - KMS_STUN_IP=coturn        # coturn 컨테이너 참조
+      - KMS_STUN_PORT=3478
+      - KMS_TURN_URL=turn:testuser:testpass@coturn:3478?transport=udp
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - kurento_logs:/var/log/kurento-media-server
+    depends_on:
+      - coturn
     networks:
       - vims-network
 
