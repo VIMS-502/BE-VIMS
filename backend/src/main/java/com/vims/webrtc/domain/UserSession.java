@@ -1,4 +1,4 @@
-package com.vims.webrtc.domail;
+package com.vims.webrtc.domain;
 
 import org.kurento.client.WebRtcEndpoint;
 import org.springframework.web.socket.TextMessage;
