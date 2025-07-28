@@ -16,11 +16,12 @@ CREATE TABLE IF NOT EXISTS users (
     oauth_provider ENUM('GOOGLE', 'LOCAL'),
     oauth_id VARCHAR(255),
     username VARCHAR(100),
-    email VARCHAR(255),
+    email VARCHAR(255) NOT NULL UNIQUE,
     profile_image_url VARCHAR(512),
     role ENUM('GUEST', 'GENERAL') NOT NULL,
     password_hash VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_users_email (email)
 );
 
 -- 3. courses

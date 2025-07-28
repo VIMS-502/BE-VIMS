@@ -24,7 +24,7 @@ spring:
   
   # Database Configuration (MySQL for production)
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql:3306/vims?serverTimezone=Asia/Seoul}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql:3306/vims}
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${SPRING_DATASOURCE_USERNAME:vims}
     password: ${SPRING_DATASOURCE_PASSWORD:vimspass}
