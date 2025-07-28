@@ -3,7 +3,7 @@ package com.vims.chat.service;
 import com.vims.chat.dto.RoomChatMessage;
 import com.vims.chat.dto.RoomJoinMessage;
 import com.vims.chat.entity.Message;
-import com.vims.room.entity.Room;
+import com.vims.room.entity.RoomEntity;
 import com.vims.chat.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,8 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -27,31 +25,23 @@ public class RoomChatService {
     private final SimpMessagingTemplate messagingTemplate;
     private final com.vims.room.service.RoomService roomService;
     private final MessageRepository messageRepository;
-    
-    // 방별 참여자 관리 (room_code -> Set<userId>)
-    private final Map<String, Map<Integer, String>> roomParticipants = new ConcurrentHashMap<>();
 
     @Transactional
     public void joinRoom(RoomJoinMessage joinMessage) {
         // 방이 존재하는지 확인
-        Room room = roomService.findByRoomCode(joinMessage.getRoomCode())
+        RoomEntity room = roomService.findByRoomCode(joinMessage.getRoomCode())
                 .orElse(null);
         
         if (room == null) {
             log.warn("Room not found with code: {}", joinMessage.getRoomCode());
             return;
         }
-        
-        // 참여자 등록
-        roomParticipants.computeIfAbsent(joinMessage.getRoomCode(), k -> new ConcurrentHashMap<>())
-                .put(joinMessage.getUserId(), joinMessage.getUserName());
-        
+
         RoomChatMessage chatMessage = new RoomChatMessage();
         chatMessage.setRoomCode(joinMessage.getRoomCode());
         chatMessage.setSenderId(joinMessage.getUserId());
         chatMessage.setSenderName(joinMessage.getUserName());
-        chatMessage.setContent(joinMessage.getUserName() + "님이 방에 입장했습니다. " +
-                "(참여자 " + getParticipantCount(joinMessage.getRoomCode()) + "명)");
+        chatMessage.setContent(joinMessage.getUserName() + "님이 방에 입장했습니다.");
         chatMessage.setType(RoomChatMessage.MessageType.JOIN);
         chatMessage.setTimestamp(LocalDateTime.now());
         
@@ -75,7 +65,7 @@ public class RoomChatService {
     @Transactional
     public void leaveRoom(RoomJoinMessage leaveMessage) {
         // 방이 존재하는지 확인
-        Room room = roomService.findByRoomCode(leaveMessage.getRoomCode())
+        RoomEntity room = roomService.findByRoomCode(leaveMessage.getRoomCode())
                 .orElse(null);
         
         if (room == null) {
@@ -83,21 +73,11 @@ public class RoomChatService {
             return;
         }
         
-        // 참여자 제거
-        Map<Integer, String> participants = roomParticipants.get(leaveMessage.getRoomCode());
-        if (participants != null) {
-            participants.remove(leaveMessage.getUserId());
-            if (participants.isEmpty()) {
-                roomParticipants.remove(leaveMessage.getRoomCode());
-            }
-        }
-        
         RoomChatMessage chatMessage = new RoomChatMessage();
         chatMessage.setRoomCode(leaveMessage.getRoomCode());
         chatMessage.setSenderId(leaveMessage.getUserId());
         chatMessage.setSenderName(leaveMessage.getUserName());
-        chatMessage.setContent(leaveMessage.getUserName() + "님이 방에서 퇴장했습니다. " +
-                "(참여자 " + getParticipantCount(leaveMessage.getRoomCode()) + "명)");
+        chatMessage.setContent(leaveMessage.getUserName() + "님이 방에서 퇴장했습니다.");
         chatMessage.setType(RoomChatMessage.MessageType.LEAVE);
         chatMessage.setTimestamp(LocalDateTime.now());
         
@@ -120,15 +100,8 @@ public class RoomChatService {
 
     @Transactional
     public void sendMessage(RoomChatMessage chatMessage) {
-        // 사용자가 해당 방에 참여하고 있는지 확인
-        if (!isUserInRoom(chatMessage.getRoomCode(), chatMessage.getSenderId())) {
-            log.warn("User {} tried to send message to room {} but not a participant", 
-                    chatMessage.getSenderId(), chatMessage.getRoomCode());
-            return;
-        }
-        
         // 방이 존재하는지 확인
-        Room room = roomService.findByRoomCode(chatMessage.getRoomCode())
+        RoomEntity room = roomService.findByRoomCode(chatMessage.getRoomCode())
                 .orElse(null);
         
         if (room == null) {
@@ -160,7 +133,7 @@ public class RoomChatService {
     // 방 채팅 히스토리 조회 (페이징)
     public List<Message> getRoomChatHistory(String roomCode, int page, int size) {
         try {
-            Room room = roomService.findByRoomCode(roomCode).orElse(null);
+            RoomEntity room = roomService.findByRoomCode(roomCode).orElse(null);
             if (room == null) {
                 log.warn("Room not found with code: {}", roomCode);
                 return List.of();
@@ -184,25 +157,10 @@ public class RoomChatService {
 
     // 방 메시지 개수 조회
     public Long getRoomChatMessageCount(String roomCode) {
-        Room room = roomService.findByRoomCode(roomCode).orElse(null);
+        RoomEntity room = roomService.findByRoomCode(roomCode).orElse(null);
         if (room == null) {
             return 0L;
         }
         return messageRepository.countLectureChatMessages(room.getId());
-    }
-    
-    // 헬퍼 메서드들
-    private boolean isUserInRoom(String roomCode, Integer userId) {
-        Map<Integer, String> participants = roomParticipants.get(roomCode);
-        return participants != null && participants.containsKey(userId);
-    }
-    
-    private int getParticipantCount(String roomCode) {
-        Map<Integer, String> participants = roomParticipants.get(roomCode);
-        return participants != null ? participants.size() : 0;
-    }
-    
-    public Map<Integer, String> getRoomParticipants(String roomCode) {
-        return roomParticipants.getOrDefault(roomCode, Map.of());
     }
 }

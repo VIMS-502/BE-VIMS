@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class RoomChatMessage {
     private String roomCode;
-    private Integer senderId;
+    private Long senderId;
     private String senderName;
     private String content;
     private MessageType type;

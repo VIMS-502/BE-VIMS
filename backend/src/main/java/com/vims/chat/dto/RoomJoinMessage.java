@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class RoomJoinMessage {
     private String roomCode;
-    private Integer userId;
+    private Long userId;
     private String userName;
     private String userRole; // INSTRUCTOR, STUDENT, TA
 }
