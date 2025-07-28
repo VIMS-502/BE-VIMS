@@ -16,7 +16,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @Controller
 @RestController
@@ -106,10 +105,4 @@ public class RoomChatController {
         return ResponseEntity.ok(count);
     }
     
-    // 방 참여자 목록 조회 API
-    @GetMapping("/room/participants")
-    public ResponseEntity<Map<Integer, String>> getRoomParticipants(@RequestParam String roomCode) {
-        Map<Integer, String> participants = roomChatService.getRoomParticipants(roomCode);
-        return ResponseEntity.ok(participants);
-    }
 }

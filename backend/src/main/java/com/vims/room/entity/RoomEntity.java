@@ -7,12 +7,12 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-@Entity
+@Entity(name = "Room")
 @Table(name = "rooms")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Room {
+public class RoomEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

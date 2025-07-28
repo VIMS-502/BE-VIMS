@@ -2,7 +2,7 @@ package com.vims.room.controller;
 
 import com.vims.room.dto.CreateRoomRequest;
 import com.vims.room.dto.CreateRoomResponse;
-import com.vims.room.entity.Room;
+import com.vims.room.entity.RoomEntity;
 import com.vims.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,10 +32,10 @@ public class RoomController {
     }
     
     @GetMapping("/{roomCode}")
-    public ResponseEntity<Room> getRoomByCode(@PathVariable String roomCode) {
+    public ResponseEntity<RoomEntity> getRoomByCode(@PathVariable String roomCode) {
         log.info("Getting room info for code: {}", roomCode);
         
-        Optional<Room> room = roomService.findByRoomCode(roomCode);
+        Optional<RoomEntity> room = roomService.findByRoomCode(roomCode);
         
         if (room.isPresent()) {
             return ResponseEntity.ok(room.get());
@@ -46,28 +46,28 @@ public class RoomController {
     }
     
     @GetMapping("/open")
-    public ResponseEntity<List<Room>> getOpenRooms() {
+    public ResponseEntity<List<RoomEntity>> getOpenRooms() {
         log.info("Getting all open rooms");
         
-        List<Room> openRooms = roomService.getOpenRooms();
+        List<RoomEntity> openRooms = roomService.getOpenRooms();
         
         return ResponseEntity.ok(openRooms);
     }
     
     @GetMapping("/user/{hostUserId}")
-    public ResponseEntity<List<Room>> getUserRooms(@PathVariable Long hostUserId) {
+    public ResponseEntity<List<RoomEntity>> getUserRooms(@PathVariable Long hostUserId) {
         log.info("Getting rooms for user: {}", hostUserId);
         
-        List<Room> userRooms = roomService.getUserRooms(hostUserId);
+        List<RoomEntity> userRooms = roomService.getUserRooms(hostUserId);
         
         return ResponseEntity.ok(userRooms);
     }
     
     @GetMapping("/search")
-    public ResponseEntity<List<Room>> searchRooms(@RequestParam String keyword) {
+    public ResponseEntity<List<RoomEntity>> searchRooms(@RequestParam String keyword) {
         log.info("Searching rooms with keyword: {}", keyword);
         
-        List<Room> searchResults = roomService.searchRooms(keyword);
+        List<RoomEntity> searchResults = roomService.searchRooms(keyword);
         
         return ResponseEntity.ok(searchResults);
     }
