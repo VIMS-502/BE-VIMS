@@ -4,6 +4,10 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.vims.webrtc.domain.Room;
 import com.vims.webrtc.domain.UserSession;
+import com.vims.webrtc.service.RoomSessionService;
+import com.vims.webrtc.service.UserSessionService;
+import com.vims.webrtc.service.RoomSessionService;
+import com.vims.webrtc.service.UserSessionService;
 
 import org.kurento.client.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,12 +22,20 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class SignalingHandler extends TextWebSocketHandler {
 
+    private final RoomSessionService roomSessionService;
+    private final UserSessionService userSessionService;
+
     private final ConcurrentHashMap<String, Room> rooms = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, UserSession> sessions = new ConcurrentHashMap<>();
     private final Gson gson = new Gson();
 
     @Autowired
     private KurentoClient kurento;
+
+    public SignalingHandler(RoomSessionService roomSessionService, UserSessionService userSessionService) {
+        this.roomSessionService = roomSessionService;
+        this.userSessionService = userSessionService;
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -92,33 +104,33 @@ public class SignalingHandler extends TextWebSocketHandler {
             return;
         }
 
-        String roomName = jsonMessage.get("room").getAsString();
+        String roomCode = jsonMessage.get("room").getAsString();
 
         System.out.println("=== 방 참가 디버그 ===");
         System.out.println("세션 ID: " + session.getId());
         System.out.println("인증된 사용자 ID: " + userId);
         System.out.println("인증된 사용자 이름: " + userName);
-        System.out.println("방 이름: " + roomName);
+        System.out.println("방 이름: " + roomCode);
 
         UserSession user = new UserSession(session.getId(), userName, session);
         user.setUserId(userId); // userId 추가 설정
-        sessions.put(session.getId(), user);
+        userSessionService.addUserSession(session.getId(), user);
 
-        Room room = rooms.get(roomName);
+        Room room = roomSessionService.getRoom(roomCode);
         if (room == null) {
             try {
                 MediaPipeline pipeline = kurento.createMediaPipeline();
-                room = new Room(roomName, pipeline);
-                rooms.put(roomName, room);
-                System.out.println("새 방 생성: " + roomName);
+                room = new Room(roomCode, pipeline);
+                roomSessionService.addRoom(roomCode, room);
+                System.out.println("새 방 생성: " + roomCode);
             } catch (Exception e) {
                 System.err.println("MediaPipeline 생성 실패: " + e.getMessage());
-                sessions.remove(session.getId());
+                userSessionService.removeUserSession(session.getId());
                 return;
             }
         }
 
-        user.setRoomName(roomName);
+        user.setRoomCode(roomCode);
         room.join(user);
 
         System.out.println("현재 방의 참가자 수: " + room.getParticipants().size());
@@ -147,20 +159,23 @@ public class SignalingHandler extends TextWebSocketHandler {
         // 방 참가 완료 응답
         JsonObject joinedResponse = new JsonObject();
         joinedResponse.addProperty("type", "joinedRoom");
-        joinedResponse.addProperty("room", roomName);
+        joinedResponse.addProperty("room", roomCode);
         joinedResponse.addProperty("userName", userName); // 실제 사용자 이름 추가
         session.sendMessage(new TextMessage(gson.toJson(joinedResponse)));
 
-        System.out.println(userName + "이 " + roomName + " 방에 입장했습니다.");
+        System.out.println(userName + "이 " + roomCode + " 방에 입장했습니다.");
     }
 
     private void publishVideo(WebSocketSession session, JsonObject jsonMessage) throws Exception {
-        UserSession user = sessions.get(session.getId());
-        if (user == null || user.getRoomName() == null) return;
+        UserSession user = userSessionService.getUserSession(session.getId());
+        if (user == null || user.getRoomCode() == null) return;
 
         String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
-        Room room = rooms.get(user.getRoomName());
-        if (room == null) return;
+        Room room = roomSessionService.getRoom(user.getRoomCode());
+        if (room == null) {
+            System.err.println("방을 찾을 수 없음: " + user.getRoomCode());
+            return;
+        }
 
         try {
             WebRtcEndpoint outgoingEndpoint = new WebRtcEndpoint.Builder(room.getPipeline()).build();
@@ -225,8 +240,8 @@ public class SignalingHandler extends TextWebSocketHandler {
     }
 
     private void receiveVideoFrom(WebSocketSession session, JsonObject jsonMessage) throws Exception {
-        UserSession user = sessions.get(session.getId());
-        if (user == null || user.getRoomName() == null) {
+        UserSession user = userSessionService.getUserSession(session.getId());
+        if (user == null || user.getRoomCode() == null) {
             System.err.println("receiveVideoFrom: 사용자 세션 또는 방이 null");
             return;
         }
@@ -237,11 +252,11 @@ public class SignalingHandler extends TextWebSocketHandler {
         System.out.println("=== receiveVideoFrom 디버그 ===");
         System.out.println("수신자: " + user.getUserName());
         System.out.println("발신자: " + senderName);
-        System.out.println("방: " + user.getRoomName());
+        System.out.println("방: " + user.getRoomCode());
 
-        Room room = rooms.get(user.getRoomName());
+        Room room = roomSessionService.getRoom(user.getRoomCode());
         if (room == null) {
-            System.err.println("방을 찾을 수 없음: " + user.getRoomName());
+            System.err.println("방을 찾을 수 없음: " + user.getRoomCode());
             return;
         }
 
@@ -331,7 +346,7 @@ public class SignalingHandler extends TextWebSocketHandler {
     }
 
     private void onIceCandidate(WebSocketSession session, JsonObject jsonMessage) {
-        UserSession user = sessions.get(session.getId());
+        UserSession user = userSessionService.getUserSession(session.getId());
         if (user == null) return;
 
         String senderName = jsonMessage.get("name").getAsString();
@@ -363,9 +378,9 @@ public class SignalingHandler extends TextWebSocketHandler {
     }
 
     private void leaveRoom(WebSocketSession session) throws Exception {
-        UserSession user = sessions.remove(session.getId());
-        if (user != null && user.getRoomName() != null) {
-            Room room = rooms.get(user.getRoomName());
+        UserSession user = userSessionService.getUserSession(session.getId());
+        if (user != null && user.getRoomCode() != null) {
+            Room room = roomSessionService.getRoom(user.getRoomCode());
             if (room != null) {
                 try {
                     room.leave(user);
@@ -378,12 +393,12 @@ public class SignalingHandler extends TextWebSocketHandler {
                         participant.sendMessage(new TextMessage(gson.toJson(participantLeftMessage)));
                     }
 
-                    System.out.println(user.getUserName() + "이 " + user.getRoomName() + " 방을 떠났습니다.");
+                    System.out.println(user.getUserName() + "이 " + user.getRoomCode() + " 방을 떠났습니다.");
 
                     if (room.getParticipants().isEmpty()) {
-                        rooms.remove(user.getRoomName());
+                        rooms.remove(user.getRoomCode());
                         room.getPipeline().release();
-                        System.out.println("빈 방 제거: " + user.getRoomName());
+                        System.out.println("빈 방 제거: " + user.getRoomCode());
                     }
                 } catch (Exception e) {
                     System.err.println("방 나가기 처리 중 오류: " + e.getMessage());
@@ -393,9 +408,9 @@ public class SignalingHandler extends TextWebSocketHandler {
     }
 
     private void relayMessage(WebSocketSession session, TextMessage message) throws Exception {
-        UserSession currentUser = sessions.get(session.getId());
-        if (currentUser != null && currentUser.getRoomName() != null) {
-            Room room = rooms.get(currentUser.getRoomName());
+        UserSession currentUser = userSessionService.getUserSession(session.getId());
+        if (currentUser != null && currentUser.getRoomCode() != null) {
+            Room room = roomSessionService.getRoom(currentUser.getRoomCode());
             if (room != null) {
                 for (UserSession participant : room.getParticipants().values()) {
                     if (!participant.getSessionId().equals(session.getId()) &&

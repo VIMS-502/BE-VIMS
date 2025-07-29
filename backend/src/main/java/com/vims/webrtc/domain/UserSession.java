@@ -10,7 +10,7 @@ public class UserSession {
     private final String sessionId;
     private final String userName;
     private final WebSocketSession webSocketSession;
-    private String roomName;
+    private String roomCode;
     private Long userId; // JWT 인증으로 얻은 userId 추가
     
     // 송신용 (클라이언트 → 서버)
@@ -37,8 +37,8 @@ public class UserSession {
     public String getSessionId() { return sessionId; }
     public String getUserName() { return userName; }
     public WebSocketSession getWebSocketSession() { return webSocketSession; }
-    public String getRoomName() { return roomName; }
-    public void setRoomName(String roomName) { this.roomName = roomName; }
+    public String getRoomCode() { return roomCode; }
+    public void setRoomCode(String roomCode) { this.roomCode = roomCode; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
     public WebRtcEndpoint getOutgoingMedia() { return outgoingMedia; }
