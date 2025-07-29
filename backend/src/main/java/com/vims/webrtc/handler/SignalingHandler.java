@@ -6,8 +6,6 @@ import com.vims.webrtc.domain.Room;
 import com.vims.webrtc.domain.UserSession;
 import com.vims.webrtc.service.RoomSessionService;
 import com.vims.webrtc.service.UserSessionService;
-import com.vims.webrtc.service.RoomSessionService;
-import com.vims.webrtc.service.UserSessionService;
 
 import org.kurento.client.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,16 +15,11 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import java.util.concurrent.ConcurrentHashMap;
-
 @Component
 public class SignalingHandler extends TextWebSocketHandler {
 
     private final RoomSessionService roomSessionService;
     private final UserSessionService userSessionService;
-
-    private final ConcurrentHashMap<String, Room> rooms = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, UserSession> sessions = new ConcurrentHashMap<>();
     private final Gson gson = new Gson();
 
     @Autowired
@@ -396,7 +389,7 @@ public class SignalingHandler extends TextWebSocketHandler {
                     System.out.println(user.getUserName() + "이 " + user.getRoomCode() + " 방을 떠났습니다.");
 
                     if (room.getParticipants().isEmpty()) {
-                        rooms.remove(user.getRoomCode());
+                        roomSessionService.removeRoom(user.getRoomCode());
                         room.getPipeline().release();
                         System.out.println("빈 방 제거: " + user.getRoomCode());
                     }
