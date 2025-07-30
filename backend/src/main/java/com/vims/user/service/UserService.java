@@ -144,9 +144,25 @@ public class UserService implements UserDetailsService {
         log.info("userName 변경 완료: {}", newUserName);
         log.info("유저 아이디 : {}", userId);
     }
-
-
-
+    
+    //password확인후, 유저 삭제
+    @Transactional
+    public void deleteUserWithPasswordCheck(Long userId, String rawPassword) {
+        log.info("[회원탈퇴] 요청 userId: {}", userId);
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> {
+//                log.warn("[회원탈퇴] 존재하지 않는 사용자: {}", userId);
+                return new IllegalArgumentException("존재하지 않는 사용자입니다.");
+            });
+        boolean passwordMatch = passwordEncoder.matches(rawPassword, user.getPasswordHash());
+//        log.info("[회원탈퇴] 비밀번호 일치 여부: {}", passwordMatch);
+        if (!passwordMatch) {
+//            log.warn("[회원탈퇴] 비밀번호 불일치: userId={}, 입력값={}", userId, rawPassword);
+            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+        }
+        userRepository.delete(user);
+//        log.info("[회원탈퇴] 삭제 완료: userId={}, email={}", userId, user.getEmail());
+    }
 
 
 }

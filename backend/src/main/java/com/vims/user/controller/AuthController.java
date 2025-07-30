@@ -14,6 +14,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.http.ResponseCookie;
 import com.vims.user.entity.User;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.vims.user.dto.DeleteUserRequest;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -157,5 +159,25 @@ public class AuthController {
         userService.userNameChangeById(request.getUserName(), userId);
         return ResponseEntity.ok().build();
     }
+
+    //탈퇴
+    @PostMapping("/me/delete")
+    public ResponseEntity<?> deleteUser(@AuthenticationPrincipal User user, @RequestBody DeleteUserRequest request) {
+        Long userId = user.getId();
+        User foundUser = userService.findById(userId);
+        if (!userService.checkPassword(foundUser, request.getPassword())) {
+            return ResponseEntity.badRequest().body("비밀번호가 일치하지 않습니다.");
+        }
+        userService.deleteUserWithPasswordCheck(userId, request.getPassword());
+        return ResponseEntity.ok("회원탈퇴가 완료되었습니다.");
+    }
+
+
+    //일관된 에러 처리용 핸들러
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<?> handleIllegalArgument(IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(e.getMessage());
+    }
+
 
 }

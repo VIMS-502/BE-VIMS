@@ -26,4 +26,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // 비밀번호 변경
     //userEntity 에 구현이 되어있으므로 생략 가능
 
+    //유저 삭제
+
 }

@@ -73,6 +73,19 @@
         <div id="usernameChangeResult"></div>
     </div>
 
+    <div id="userDeleteSection" class="hidden">
+        <hr>
+        <h1>회원탈퇴 테스트</h1>
+        <form id="userDeleteForm">
+            <div>
+                <label>비밀번호 확인:</label>
+                <input type="password" id="deletePassword" required>
+            </div>
+            <button type="submit">회원탈퇴</button>
+        </form>
+        <div id="userDeleteResult"></div>
+    </div>
+
     <script>
         // 구글 로그인 스크립트
         const clientId = '45842556858-o14hkpalhlk5jqfljr9724qigdbjo6gf.apps.googleusercontent.com';
@@ -187,8 +200,10 @@
                     // JWT 토큰 저장 (accessToken만 사용)
                     localStorage.setItem('accessToken', jsonResult.accessToken);
                     document.getElementById('usernameChangeSection').classList.remove('hidden');
+                    document.getElementById('userDeleteSection').classList.remove('hidden');
                 } else {
                     document.getElementById('usernameChangeSection').classList.add('hidden');
+                    document.getElementById('userDeleteSection').classList.add('hidden');
                 }
             } catch (error) {
                 document.getElementById('loginResult').innerHTML = `
@@ -196,6 +211,7 @@
                     <pre>${error.message}</pre>
                 `;
                 document.getElementById('usernameChangeSection').classList.add('hidden');
+                document.getElementById('userDeleteSection').classList.add('hidden');
             }
         });
 
@@ -223,6 +239,39 @@
                 `;
             } catch (error) {
                 document.getElementById('usernameChangeResult').innerHTML = `
+                    <h3>에러:</h3>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        });
+
+        // 회원탈퇴 폼 처리
+        document.getElementById('userDeleteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('deletePassword').value;
+            const token = localStorage.getItem('accessToken');
+            try {
+                const response = await fetch('/api/auth/me/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ password })
+                });
+                const result = await response.text();
+                document.getElementById('userDeleteResult').innerHTML = `
+                    <h3>응답 (${response.status}):</h3>
+                    <pre>${result}</pre>
+                `;
+                if (response.ok) {
+                    // 탈퇴 성공 시 토큰 삭제 및 UI 초기화
+                    localStorage.removeItem('accessToken');
+                    document.getElementById('usernameChangeSection').classList.add('hidden');
+                    document.getElementById('userDeleteSection').classList.add('hidden');
+                }
+            } catch (error) {
+                document.getElementById('userDeleteResult').innerHTML = `
                     <h3>에러:</h3>
                     <pre>${error.message}</pre>
                 `;
