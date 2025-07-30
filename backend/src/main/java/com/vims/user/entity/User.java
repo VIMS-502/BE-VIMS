@@ -103,4 +103,9 @@ public class User implements UserDetails {
             this.profileImageUrl = profileImageUrl;
         }
     }
+
+    //이름변경
+    public void updateUserName(String username){
+        this.username = username;
+    }
 } 

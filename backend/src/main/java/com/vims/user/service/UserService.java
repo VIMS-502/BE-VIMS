@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +31,20 @@ public class UserService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + email));
+    }
+
+    public User findByEmail(String email) {
+        return userRepository.findByEmail(email)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+    }
+
+    public boolean checkPassword(User user, String rawPassword) {
+        return passwordEncoder.matches(rawPassword, user.getPasswordHash());
+    }
+
+    public User findById(Long id) {
+        return userRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
     }
 
     // 회원가입
@@ -87,6 +102,8 @@ public class UserService implements UserDetailsService {
         return convertToDto(user);
     }
 
+
+    //oauth 로그인 (가입이력 없으면 회원가입 )
     @Transactional
     public String oauthLoginOrSignup(String email, String username, String oauthProvider, String oauthId, String profileImageUrl) {
         // provider+oauthId로 먼저 조회
@@ -107,5 +124,45 @@ public class UserService implements UserDetailsService {
 
         return jwtTokenProvider.generateAccessToken(user);
     }
-   
+    
+    //비밀번호 변경
+    @Transactional
+    public void passwordChange(String email, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        user.updatePassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("비밀번호 변경 완료: {}", email);
+    }
+    
+    //userName변경 (userId 기반)
+    @Transactional
+    public void userNameChangeById(String newUserName, Long userId) {
+        User user = findById(userId);
+        user.updateUserName(newUserName);
+        userRepository.save(user);
+        log.info("userName 변경 완료: {}", newUserName);
+        log.info("유저 아이디 : {}", userId);
+    }
+    
+    //password확인후, 유저 삭제
+    @Transactional
+    public void deleteUserWithPasswordCheck(Long userId, String rawPassword) {
+        log.info("[회원탈퇴] 요청 userId: {}", userId);
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> {
+//                log.warn("[회원탈퇴] 존재하지 않는 사용자: {}", userId);
+                return new IllegalArgumentException("존재하지 않는 사용자입니다.");
+            });
+        boolean passwordMatch = passwordEncoder.matches(rawPassword, user.getPasswordHash());
+//        log.info("[회원탈퇴] 비밀번호 일치 여부: {}", passwordMatch);
+        if (!passwordMatch) {
+//            log.warn("[회원탈퇴] 비밀번호 불일치: userId={}, 입력값={}", userId, rawPassword);
+            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+        }
+        userRepository.delete(user);
+//        log.info("[회원탈퇴] 삭제 완료: userId={}, email={}", userId, user.getEmail());
+    }
+
+
 }
