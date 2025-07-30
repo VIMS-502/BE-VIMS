@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Service
 @RequiredArgsConstructor
@@ -106,6 +107,15 @@ public class UserService implements UserDetailsService {
                 });
 
         return jwtTokenProvider.generateAccessToken(user);
+    }
+
+    @Transactional
+    public void passwordChange(String email, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        user.updatePassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("비밀번호 변경 완료: {}", email);
     }
    
 }

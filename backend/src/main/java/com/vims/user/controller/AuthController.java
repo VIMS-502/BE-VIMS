@@ -101,4 +101,43 @@ public class AuthController {
         }
     }
 
+    //비밀번호 교체 용 이메일 코드 전송
+    @PostMapping("/send-code/password/change")
+    public ResponseEntity<?> passwordChangeCode(@RequestParam String email){
+        emailService.sendCodeForPasswordChange(email);
+        return ResponseEntity.ok().build();
+    }
+
+    //비밀번호 교체 용 이메일 코드 일치여부확인
+    @PostMapping("/verify-code/password/change")
+    public ResponseEntity<?> verifyCodeForPasswordChange(@RequestParam String email, @RequestParam String code){
+        boolean result = emailService.verifyCode(email, code);
+        if (result) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.badRequest().body("인증코드가 일치하지 않습니다.");
+        }
+    }
+
+    //비밀번호 교체
+    @PutMapping("/me/password/change")
+    public ResponseEntity<?> passwordChange(@RequestBody PasswordChange request) {
+        // 1. 비밀번호 일치 확인
+        if (!request.getNewPassword().equals(request.getNewPasswordConfirm())) {
+            return ResponseEntity.badRequest().body("비밀번호가 일치하지 않습니다.");
+        }
+        // 2. 인증코드 확인
+        boolean codeValid = emailService.verifyCode(request.getEmail(), request.getCode());
+        if (!codeValid) {
+            return ResponseEntity.badRequest().body("인증코드가 일치하지 않습니다.");
+        }
+        // 3. 비밀번호 변경
+        try {
+            userService.passwordChange(request.getEmail(), request.getNewPassword());
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
 }
