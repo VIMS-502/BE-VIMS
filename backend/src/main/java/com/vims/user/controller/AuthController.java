@@ -12,6 +12,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.http.ResponseCookie;
+import com.vims.user.entity.User;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -138,6 +140,22 @@ public class AuthController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    //유저명 변경
+    @PutMapping("/me/username/change")
+    public ResponseEntity<?> userNameChange(
+            @AuthenticationPrincipal User user,
+            @RequestBody UserNameChange request
+    ) {
+        Long userId = user.getId();
+        User foundUser = userService.findById(userId);
+
+        if (!userService.checkPassword(foundUser, request.getPassword())) {
+            return ResponseEntity.badRequest().body("비밀번호가 일치하지 않습니다.");
+        }
+        userService.userNameChangeById(request.getUserName(), userId);
+        return ResponseEntity.ok().build();
     }
 
 }
