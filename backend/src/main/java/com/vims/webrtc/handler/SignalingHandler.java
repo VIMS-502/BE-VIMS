@@ -151,6 +151,7 @@ public class SignalingHandler extends TextWebSocketHandler {
         joinedResponse.addProperty("room", roomCode);
         joinedResponse.addProperty("userName", userName); // 실제 사용자 이름 추가
         joinedResponse.addProperty("userId", userId);
+        joinedResponse.addProperty("userSessionId", session.getId());
         joinedResponse.addProperty("connectionMode", user.getMode()); // 접속 방식 추가
         session.sendMessage(new TextMessage(gson.toJson(joinedResponse)));
 
@@ -313,7 +314,8 @@ public class SignalingHandler extends TextWebSocketHandler {
 
     private void handleSFUReceiveVideo(UserSession user, JsonObject jsonMessage) throws Exception {
 
-        String senderName = jsonMessage.get("sender").getAsString();
+        String senderSessionId = jsonMessage.get("sender").getAsString();
+        String senderName = jsonMessage.get("senderName").getAsString();
         String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
 
         System.out.println("=== receiveVideoFrom 디버그 ===");
@@ -327,7 +329,7 @@ public class SignalingHandler extends TextWebSocketHandler {
             return;
         }
 
-        UserSession sender = room.getParticipants().get(senderName);
+        UserSession sender = room.getParticipants().get(senderSessionId);
         if (sender == null) {
             System.err.println("발신자를 찾을 수 없음: " + senderName);
             System.out.println("현재 방 참가자:");
@@ -356,7 +358,7 @@ public class SignalingHandler extends TextWebSocketHandler {
 
         try {
             WebRtcEndpoint incomingEndpoint = new WebRtcEndpoint.Builder(room.getPipeline()).build();
-            user.getIncomingMedia().put(senderName, incomingEndpoint);
+            user.getIncomingMedia().put(senderSessionId, incomingEndpoint);
             System.out.println("incomingEndpoint 생성 완료");
 
             incomingEndpoint.addIceCandidateFoundListener(event -> {
