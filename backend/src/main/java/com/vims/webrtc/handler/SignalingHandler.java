@@ -149,9 +149,9 @@ public class SignalingHandler extends TextWebSocketHandler {
         JsonObject joinedResponse = new JsonObject();
         joinedResponse.addProperty("type", "joinedRoom");
         joinedResponse.addProperty("room", roomCode);
-        joinedResponse.addProperty("userName", userName); // 실제 사용자 이름 추가
+        joinedResponse.addProperty("name", userName); // 실제 사용자 이름 추가
         joinedResponse.addProperty("userId", userId);
-        joinedResponse.addProperty("userSessionId", session.getId());
+        joinedResponse.addProperty("sessionId", session.getId());
         joinedResponse.addProperty("connectionMode", user.getMode()); // 접속 방식 추가
         session.sendMessage(new TextMessage(gson.toJson(joinedResponse)));
 

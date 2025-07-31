@@ -5,11 +5,25 @@
     <meta charset="UTF-8" />
     <style>
         body { font-family: Arial; margin: 20px; }
-        .video-container { display: grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap: 20px; margin: 20px 0; }
-        video { width: 100%; max-width: 320px; border:2px solid #ccc; border-radius:8px; }
-        .controls { margin:20px 0; }
-        button { padding:8px 16px; margin:4px; }
-        .status, .connection-info { padding:10px; background:#f0f0f0; border-radius:4px; margin:8px 0; }
+        .video-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        video {
+            width: 100%; max-width: 320px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+        .controls { margin: 20px 0; }
+        button { padding: 8px 16px; margin: 4px; }
+        .status, .connection-info {
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            margin: 8px 0;
+        }
     </style>
 </head>
 <body>
@@ -28,7 +42,7 @@
 
 <div class="controls">
     <input id="roomInput" placeholder="방 이름" value="testRoom" />
-    <input id="nameInput" placeholder="사용자 이름" value="User" />
+    <!-- 닉네임 입력창 없음 -->
     <button id="joinBtn" onclick="joinRoom()">방 참가</button>
     <button id="startVideoBtn" onclick="startVideo()" disabled>비디오 시작</button>
     <button id="leaveBtn" onclick="leaveRoom()" disabled>방 나가기</button>
@@ -40,14 +54,17 @@
 
 <div>
     <h3>로그</h3>
-    <div id="logs" style="height:200px;overflow-y:auto;background:#fafafa;border:1px solid #ddd;padding:8px;"></div>
+    <div id="logs" style="height:200px; overflow-y:auto; background:#fafafa; border:1px solid #ddd; padding:8px;"></div>
 </div>
 
 <script>
     let socket, localStream, publishPc;
-    // 참가자 관리: sessionId를 키, 값은 { pc, hasVideo, isLocal, name }
-    let participants = {}, currentRoom;
-    let currentSessionId = null, currentName = null;
+    // 참가자 관리: sessionId 키, 값은 {pc, hasVideo, isLocal, name}
+    let participants = {};
+    let currentRoom = null;
+    let currentSessionId = null;
+    let currentUser = null;
+    let token = null;
 
     const statusEl = document.getElementById('status'),
         wsStateEl = document.getElementById('connectionState'),
@@ -61,6 +78,12 @@
         startBtn = document.getElementById('startVideoBtn'),
         leaveBtn = document.getElementById('leaveBtn');
 
+    // URL 파라미터에서 token, room 추출
+    const urlParams = new URLSearchParams(window.location.search);
+    token = urlParams.get('token');
+    currentRoom = urlParams.get('room') || 'testRoom';
+
+    // 로그 출력
     function log(msg){
         const t = new Date().toLocaleTimeString();
         logsEl.innerHTML += `[${t}] ${msg}<br>`;
@@ -74,67 +97,147 @@
     function updateInfo(){
         const count = Object.keys(participants).length;
         const videos = Object.values(participants).filter(p => p.hasVideo).length;
-        partCountEl.textContent = '참가자: ' + count + '명';
-        vidCountEl.textContent = '활성 비디오: ' + videos + '개';
+        partCountEl.textContent = `참가자: ${count}명`;
+        vidCountEl.textContent = `활성 비디오: ${videos}개`;
         infoEl.style.display = count > 0 ? 'block' : 'none';
     }
 
-    function debugConnections(){
-        log('=== 디버그 시작 ===');
-        log('방: ' + currentRoom + ', 세션: ' + currentSessionId + ', 이름: ' + currentName);
-        for(const sessionId in participants){
-            const p = participants[sessionId];
-            log(`세션ID:${sessionId} / 이름:${p.name} / hasVideo:${p.hasVideo} / pc 상태:${p.pc ? p.pc.connectionState : '없음'}`);
-        }
-        if(publishPc) log('Publish PC 상태: ' + publishPc.connectionState);
-        log('=== 디버그 끝 ===');
+    function addParticipant(sessionId, name, isLocal){
+        if(participants[sessionId]) return;
+        participants[sessionId] = { pc:null, hasVideo:false, isLocal, name };
+        updateInfo();
     }
 
-    // WebSocket 연결 함수
-    function connectWS(token) {
-        let url = 'ws://localhost:8080/signaling';
-        if(token) url += `?token=${token}`;
-        socket = new WebSocket(url);
+    function removeParticipant(sessionId){
+        log(`퇴장 ${participants[sessionId]?.name || sessionId}`);
+        const wrapper = document.getElementById('wrapper-' + sessionId);
+        if(wrapper) wrapper.remove();
+        if(participants[sessionId]?.pc) participants[sessionId].pc.close();
+        delete participants[sessionId];
+        updateInfo();
+    }
+
+    // 토큰 인증 연결
+    function connectWSWithToken(token) {
+        if(!token){
+            alert('인증 토큰이 필요합니다.');
+            updateWS('토큰 없음');
+            return;
+        }
+
+        socket = new WebSocket(`ws://localhost:8080/signaling?token=${token}`);
 
         socket.onopen = () => {
-            log(token ? 'WS 연결됨 (토큰 인증)' : 'WS 연결됨');
+            log('WS 연결됨 (토큰 인증)');
             updateWS('연결됨');
-            sendMessage({ type: 'joinRoom', room: currentRoom, name: currentName });
+            // 최초 joinRoom 메시지는 sessionId와 name 모름 (서버에서 할당해서 보내줄 것)
+            sendMessage({type: 'joinRoom', room: currentRoom});
         };
 
         socket.onmessage = evt => {
-            log('RAW 수신: ' + evt.data);
             let msg;
             try {
                 msg = JSON.parse(evt.data);
             } catch(e) {
-                return log('파싱 오류');
+                log('파싱 오류: ' + e.message);
+                return;
             }
             log('수신: ' + msg.type);
-            if(msg.type === 'receiveVideoAnswer')
-                log('▶ receiveVideoAnswer ' + (msg.sessionId || msg.sender));
+
+            if(msg.type === 'joinedRoom'){
+                if(msg.sessionId && msg.name){
+                    currentSessionId = msg.sessionId;
+                    currentUser = msg.name;
+                    log(`서버에서 할당된 세션ID: ${currentSessionId}, 이름: ${currentUser}`);
+                    addParticipant(currentSessionId, currentUser, true);
+                    joinBtn.disabled = true;
+                    startBtn.disabled = false;
+                    leaveBtn.disabled = false;
+                    updateStatus('방참가 완료');
+                } else {
+                    log('joinedRoom 메시지에 sessionId 또는 name 누락');
+                    log(msg.sessionId);
+                    log(msg.name);
+                }
+            }
+
             handleMessage(msg);
         };
 
-        socket.onerror = () => { log('WS 오류'); updateWS('오류'); };
-        socket.onclose = () => { log('WS 종료'); updateWS('끊김'); };
+        socket.onerror = () => {
+            log('WS 오류');
+            updateWS('오류');
+        };
+
+        socket.onclose = () => {
+            log('WS 종료');
+            updateWS('끊김');
+        };
     }
 
-    function sendMessage(m){
-        if(socket && socket.readyState === 1){
+    // 임시 게스트 연결 시 (토큰 없을 때)
+    function connectWS(){
+        socket = new WebSocket('ws://localhost:8080/signaling');
+
+        socket.onopen = () => {
+            log('WS 연결됨');
+            updateWS('연결됨');
+            sendMessage({type: 'joinRoom', room: currentRoom});
+        };
+
+        socket.onmessage = evt => {
+            let msg;
+            try {
+                msg = JSON.parse(evt.data);
+            } catch(e) {
+                log('파싱 오류: ' + e.message);
+                return;
+            }
+            log('수신: ' + msg.type);
+
+            // 서버에서 세션ID 할당 받기
+            if(msg.type === 'joinedRoom'){
+                if(msg.sessionId && msg.name){
+                    currentSessionId = msg.sessionId;
+                    currentUser = msg.name;
+                    log(`서버에서 할당된 세션ID: ${currentSessionId}, 이름: ${currentUser}`);
+                    addParticipant(currentSessionId, currentUser, true);
+                    joinBtn.disabled = true;
+                    startBtn.disabled = false;
+                    leaveBtn.disabled = false;
+                    updateStatus('방참가 완료');
+                } else {
+                    log('joinedRoom 메시지에 sessionId 또는 name 누락');
+                }
+            }
+
+            handleMessage(msg);
+        };
+
+        socket.onerror = () => {
+            log('WS 오류');
+            updateWS('오류');
+        };
+
+        socket.onclose = () => {
+            log('WS 종료');
+            updateWS('끊김');
+        };
+    }
+
+    function sendMessage(m) {
+        if(socket && socket.readyState === 1) {
             socket.send(JSON.stringify(m));
             log('송신: ' + m.type);
         }
     }
 
-    // 메시지 핸들러
     function handleMessage(m){
-        switch(m.type) {
-            case 'joinedRoom': onJoined(m); break;
+        switch(m.type){
             case 'existingParticipant':
                 addParticipant(m.sessionId, m.name, false);
                 if(localStream){
-                    log(`기존 참가자 ${m.name}의 비디오 수신 시작`);
+                    log(`기존 참가자 ${m.name} 비디오 수신 시작`);
                     setTimeout(() => receiveVideo(m.sessionId, m.name), 1000);
                 }
                 break;
@@ -155,7 +258,7 @@
                 break;
             case 'videoAvailable':
                 if(localStream){
-                    log(`${m.name}의 비디오 사용 가능 - 수신 시작`);
+                    log(`${m.name} 비디오 사용 가능 - 수신 시작`);
                     setTimeout(() => receiveVideo(m.sessionId, m.name), 500);
                 }
                 break;
@@ -165,83 +268,49 @@
         }
     }
 
-    function joinRoom(){
-        currentRoom = document.getElementById('roomInput').value.trim();
-        currentName = document.getElementById('nameInput').value.trim() || 'Unknown';
-        if(!currentRoom) { alert('방 이름을 입력해주세요'); return; }
-        if(!currentName) { alert('사용자 이름을 입력해주세요'); return; }
-        currentSessionId = null;
-        connectWS();
-    }
-
-    function onJoined(m){
-        log('방참가 ' + m.room);
-        if(m.sessionId){
-            currentSessionId = m.sessionId;
-            log('서버에서 받은 세션ID로 업데이트: ' + currentSessionId);
-        }
-        if(m.name){
-            currentName = m.name;
-            log('서버에서 받은 이름으로 업데이트: ' + currentName);
-        }
-        updateStatus('방참가');
-        joinBtn.disabled = true;
-        startBtn.disabled = false;
-        leaveBtn.disabled = false;
-        addParticipant(currentSessionId, currentName, true);
-    }
-
-    function addParticipant(sessionId, name, isLocal){
-        if(participants[sessionId]) return;
-        participants[sessionId] = { pc: null, hasVideo: false, isLocal: isLocal, name: name };
-        updateInfo();
-    }
-
-    function removeParticipant(sessionId){
-        log('퇴장 ' + (participants[sessionId]?.name || sessionId));
-        const wrapper = document.getElementById('wrapper-'+sessionId);
-        if(wrapper) wrapper.remove();
-        if(participants[sessionId] && participants[sessionId].pc)
-            participants[sessionId].pc.close();
-        delete participants[sessionId];
-        updateInfo();
-    }
-
     async function startVideo(){
+        if(!currentSessionId || !currentUser){
+            alert('아직 sessionId 또는 사용자 이름이 할당되지 않았습니다.');
+            return;
+        }
         try {
-            updateStatus('카메라');
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            createVideo(currentSessionId, currentName, localStream, true);
+            updateStatus('카메라 접근 중');
+            localStream = await navigator.mediaDevices.getUserMedia({ video:true,audio:true });
+            createVideo(currentSessionId, currentUser, localStream, true);
             participants[currentSessionId].hasVideo = true;
             updateInfo();
             await publish();
             startBtn.disabled = true;
-            updateStatus('스트리밍');
+            updateStatus('스트리밍 중');
         } catch(e) {
             log('getUserMedia 실패: ' + e.message);
+            alert('카메라 접근 실패: ' + e.message);
         }
     }
 
     async function publish(){
-        publishPc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-        publishPc.onicecandidate = e => e.candidate && sendMessage({
-            type: 'onIceCandidate',
-            sessionId: currentSessionId,
-            name: currentName,
-            candidate: e.candidate
-        });
+        if(!currentSessionId || !currentUser){
+            log('publish 실패: sessionId 또는 사용자 이름이 할당되지 않음');
+            return;
+        }
+        publishPc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] });
+        publishPc.onicecandidate = e => {
+            if(e.candidate) {
+                sendMessage({ type:'onIceCandidate', sessionId: currentSessionId, name: currentUser, candidate: e.candidate });
+            }
+        };
         publishPc.onconnectionstatechange = () => updateRTC(publishPc.connectionState);
-        localStream.getTracks().forEach(t => publishPc.addTrack(t, localStream));
+        localStream.getTracks().forEach(track => publishPc.addTrack(track, localStream));
         const offer = await publishPc.createOffer();
         await publishPc.setLocalDescription(offer);
-        sendMessage({ type:'publishVideo', sdpOffer: offer.sdp, sessionId: currentSessionId, name: currentName });
+        sendMessage({ type:'publishVideo', sdpOffer: offer.sdp, sessionId: currentSessionId, name: currentUser });
     }
 
     async function onPublishAnswer(m){
         await publishPc.setRemoteDescription({ type:'answer', sdp: m.sdpAnswer });
-        for(const sessionId in participants){
-            if(sessionId !== currentSessionId){
-                receiveVideo(sessionId, participants[sessionId].name);
+        for(const sid in participants){
+            if(sid !== currentSessionId){
+                receiveVideo(sid, participants[sid].name);
             }
         }
     }
@@ -249,41 +318,39 @@
     async function receiveVideo(sessionId, name){
         if(sessionId === currentSessionId) return;
         if(!participants[sessionId]){
-            log(`${name} 참가자 정보가 없어 추가합니다`);
+            log(`${name} 참가자 정보가 없어 추가`);
             addParticipant(sessionId, name, false);
         }
-        if(participants[sessionId].pc){
-            participants[sessionId].pc.close();
-        }
-        const pc = new RTCPeerConnection({ iceServers: [{ urls:'stun:stun.l.google.com:19302' }] });
+        if(participants[sessionId].pc) participants[sessionId].pc.close();
+
+        const pc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] });
         participants[sessionId].pc = pc;
-        pc.onicecandidate = e => e.candidate && sendMessage({
-            type: 'onIceCandidate',
-            sessionId: sessionId,
-            name: name,
-            candidate: e.candidate
-        });
+
+        pc.onicecandidate = e => {
+            if(e.candidate) {
+                sendMessage({ type:'onIceCandidate', sessionId: sessionId, name: name, candidate: e.candidate });
+            }
+        };
+
         pc.ontrack = e => {
-            log(`${name}의 비디오 트랙 수신됨 - 종류: ${e.track.kind}, 활성화: ${e.track.enabled}, 음소거: ${e.track.muted}`);
+            log(`${name} 비디오 트랙 수신됨 (종류: ${e.track.kind})`);
             if(e.track.kind === 'video'){
                 e.track.enabled = true;
-                log(`${name}의 비디오 트랙 강제 활성화`);
+                log(`${name} 비디오 트랙 활성화`);
             }
             if(e.streams && e.streams[0]){
                 const stream = e.streams[0];
-                log(`${name}의 스트림 정보 - 트랙 수: ${stream.getTracks().length}`);
-                stream.getTracks().forEach(track => {
-                    log(`트랙: ${track.kind}, 활성화: ${track.enabled}, 음소거: ${track.muted}`);
-                });
                 createVideo(sessionId, name, stream, false);
                 participants[sessionId].hasVideo = true;
                 updateInfo();
-                log(`${name}의 비디오 표시 완료`);
+                log(`${name} 비디오 표시 완료`);
             } else {
-                log(`${name}의 스트림이 없음`);
+                log(`${name} 스트림 없음`);
             }
         };
-        pc.onconnectionstatechange = () => log(name + ' conn: ' + pc.connectionState);
+
+        pc.onconnectionstatechange = () => log(`${name} 연결 상태: ${pc.connectionState}`);
+
         const offer = await pc.createOffer({ offerToReceiveAudio:true, offerToReceiveVideo:true });
         await pc.setLocalDescription(offer);
         sendMessage({ type:'receiveVideoFrom', sender: sessionId, name: name, sdpOffer: offer.sdp });
@@ -293,7 +360,7 @@
         const pc = participants[m.sessionId]?.pc;
         if(pc){
             await pc.setRemoteDescription({ type:'answer', sdp: m.sdpAnswer });
-            log(`${m.name || m.sessionId} 수신셋업 완료`);
+            log(`${m.name || m.sessionId} 수신 셋업 완료`);
         }
     }
 
@@ -301,14 +368,14 @@
         if(m.sessionId === currentSessionId){
             if(publishPc && publishPc.remoteDescription){
                 publishPc.addIceCandidate(new RTCIceCandidate(m.candidate)).catch(e => {
-                    log(`자신의 ICE candidate 추가 실패: ${e.message}`);
+                    log(`자신 ICE candidate 추가 실패: ${e.message}`);
                 });
             } else {
-                log(`자신의 ICE candidate 대기 중`);
+                log('자신 ICE candidate 대기 중');
             }
         } else {
             if(!participants[m.sessionId]){
-                log(`${m.name || m.sessionId} 참가자 정보가 없어 ICE candidate 무시`);
+                log(`${m.name || m.sessionId} 참가자 정보 없어 ICE candidate 무시`);
                 return;
             }
             const pc = participants[m.sessionId].pc;
@@ -323,37 +390,38 @@
     }
 
     function createVideo(sessionId, name, stream, muted){
-        let wrapper = document.getElementById('wrapper-' + sessionId);
+        let wrapper = document.getElementById('wrapper-'+sessionId);
         if(wrapper) wrapper.remove();
         wrapper = document.createElement('div');
-        wrapper.id = 'wrapper-' + sessionId;
+        wrapper.id = 'wrapper-'+sessionId;
         wrapper.className = 'video-wrapper';
 
         const video = document.createElement('video');
-        video.id = 'video-' + sessionId;
+        video.id = 'video-'+sessionId;
         video.autoplay = true;
         video.playsInline = true;
         video.muted = muted;
         video.srcObject = stream;
 
         video.onloadedmetadata = () => {
-            log(`${name}의 비디오 메타데이터 로드됨`);
+            log(`${name} 비디오 메타데이터 로드됨`);
             video.play().catch(e => log(`${name} 비디오 재생 실패: ${e.message}`));
         };
         video.oncanplay = () => {
-            log(`${name}의 비디오 재생 준비 완료`);
+            log(`${name} 비디오 재생 준비 완료`);
         };
         video.onerror = (e) => {
-            log(`${name}의 비디오 오류: ${e.message || '알 수 없는 오류'}`);
+            log(`${name} 비디오 오류: ${e.message || '알 수 없는 오류'}`);
         };
 
         const label = document.createElement('h4');
-        label.textContent = name + (muted ? ' (나)' : '');
+        label.textContent = name+(muted ? ' (나)' : '');
         wrapper.appendChild(label);
         wrapper.appendChild(video);
+
         videoContainer.appendChild(wrapper);
 
-        log(`${name}의 비디오 엘리먼트 생성 완료`);
+        log(`${name} 비디오 엘리먼트 생성 완료`);
     }
 
     function testReceiveVideoAnswer(){
@@ -370,16 +438,39 @@
         });
     }
 
+    function joinRoom(){
+        currentRoom = document.getElementById('roomInput').value.trim();
+        if(!currentRoom){
+            alert('방 이름을 입력해주세요');
+            return;
+        }
+        if(token){
+            connectWSWithToken(token);
+        } else {
+            // 토큰 없는 경우 게스트 ID 생성 및 연결
+            currentSessionId = 'guest-' + Math.floor(Math.random() * 10000);
+            currentUser = currentSessionId;
+            connectWS();
+            joinBtn.disabled = true;
+            startBtn.disabled = false;
+            leaveBtn.disabled = false;
+        }
+    }
+
     function leaveRoom(){
-        sendMessage({type:'leaveRoom', sessionId: currentSessionId, name: currentName});
+        if(socket && socket.readyState === 1){
+            sendMessage({ type:'leaveRoom', sessionId: currentSessionId, name: currentUser });
+        }
         if(publishPc) publishPc.close();
-        for(const id in participants) {
-            if(participants[id].pc) participants[id].pc.close();
+        for(let sid in participants){
+            if(participants[sid].pc) participants[sid].pc.close();
         }
         if(localStream){
-            localStream.getTracks().forEach(t => t.stop());
+            localStream.getTracks().forEach(track => track.stop());
         }
-        socket.close();
+        if(socket){
+            socket.close();
+        }
         participants = {};
         videoContainer.innerHTML = '';
         joinBtn.disabled = false;
@@ -393,7 +484,19 @@
 
     window.onbeforeunload = leaveRoom;
     window.onload = () => updateStatus('준비됨');
-</script>
 
+    // URL에 토큰과 룸이 있을 경우 페이지 로드 후 자동 입장 시도
+    if(currentRoom && token){
+        document.getElementById('roomInput').value = currentRoom;
+        setTimeout(() => {
+            joinRoom();
+            setTimeout(async () => {
+                if(socket && socket.readyState === 1){
+                    await startVideo();
+                }
+            }, 2000);
+        }, 500);
+    }
+</script>
 </body>
 </html>
