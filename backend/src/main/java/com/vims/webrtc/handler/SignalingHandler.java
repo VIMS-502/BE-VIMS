@@ -315,7 +315,7 @@ public class SignalingHandler extends TextWebSocketHandler {
     private void handleSFUReceiveVideo(UserSession user, JsonObject jsonMessage) throws Exception {
 
         String senderSessionId = jsonMessage.get("sender").getAsString();
-        String senderName = jsonMessage.get("senderName").getAsString();
+        String senderName = jsonMessage.get("name").getAsString();
         String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
 
         System.out.println("=== receiveVideoFrom 디버그 ===");
