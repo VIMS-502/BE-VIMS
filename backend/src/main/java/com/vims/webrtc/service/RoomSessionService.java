@@ -59,36 +59,4 @@ public class RoomSessionService {
     }
 
     // ============ participants 메서드 ============
-
-    // RoomSessionService.java의 addParticipant 메서드 수정
-    public boolean addParticipant(String roomCode, String userName, UserSession userSession) {
-        Room room = rooms.get(roomCode);
-        if (room == null || room.getParticipants().containsKey(userName)) {
-            return false;
-        }
-
-        // 참가자 수 제한 로직 (예시: 최대 10명)
-        // if (room.getParticipants().size() >= 10) {
-        //     return false;
-        // }
-
-        // userName을 키로 사용 (sessionId가 아닌)
-        room.getParticipants().put(userName, userSession);
-        log.info("참가자 추가: {} -> {} ({}명)", userName, roomCode,
-                room.getParticipants().size());
-        return true;
-    }
-
-
-    public UserSession removeParticipant(String roomCode, String userName) {
-        Room room = rooms.get(roomCode);
-        if (room == null) return null;
-
-        UserSession removed = room.getParticipants().remove(userName);
-        if (removed != null) {
-            log.info("참가자 제거: {} <- {} ({}명)", userName, roomCode,
-                    room.getParticipants().size());
-        }
-        return removed;
-    }
 }

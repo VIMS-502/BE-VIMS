@@ -15,6 +15,8 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.io.IOException;
+
 @Component
 public class SignalingHandler extends TextWebSocketHandler {
 
@@ -88,7 +90,7 @@ public class SignalingHandler extends TextWebSocketHandler {
         // 세션에서 인증된 사용자 정보 가져오기
         Long userId = (Long) session.getAttributes().get("userId");
         String userName = (String) session.getAttributes().get("userName");
-        
+
         if (userId == null || userName == null) {
             JsonObject errorResponse = new JsonObject();
             errorResponse.addProperty("type", "error");
@@ -105,11 +107,9 @@ public class SignalingHandler extends TextWebSocketHandler {
         System.out.println("인증된 사용자 이름: " + userName);
         System.out.println("방 이름: " + roomCode);
 
-        UserSession user = new UserSession(session.getId(), userName, session);
-        user.setUserId(userId); // userId 추가 설정
-        userSessionService.addUserSession(session.getId(), user);
-
+        //composite를 get해와야 UserSession의 hubPort 생성 가능
         Room room = roomSessionService.getRoom(roomCode);
+
         if (room == null) {
             try {
                 MediaPipeline pipeline = kurento.createMediaPipeline();
@@ -123,48 +123,47 @@ public class SignalingHandler extends TextWebSocketHandler {
             }
         }
 
+        String mode;
+        //방 참가 인원이 임계치(6) 이상이라면?
+        if(room.SFUCount() >= room.getThreshold()){
+            System.out.println("SFU 인원이 꽉 찼습니다. 지금 입장하는 " + userName + "는 MCU입니다.");
+            mode = "MCU";
+        }else{
+            mode = "SFU";
+        }
+
+        UserSession user = new UserSession(session.getId(), userName, session, room.getComposite(), mode);
+        user.setUserId(userId); // userId 추가 설정
         user.setRoomCode(roomCode);
+        user.setMode(mode);
         room.join(user);
+
+        //사용자 정보 설정 완료 + 방에 추가됨 => UserSession 목록에 추가
+        userSessionService.addUserSession(session.getId(), user);
+
 
         System.out.println("현재 방의 참가자 수: " + room.getParticipants().size());
         System.out.println("==================");
-
-        // 기존 참가자들에게 새 참가자 알림
-        for (UserSession participant : room.getParticipants().values()) {
-            if (!participant.getUserName().equals(userName)) {
-                JsonObject newParticipantMessage = new JsonObject();
-                newParticipantMessage.addProperty("type", "newParticipantArrived");
-                newParticipantMessage.addProperty("name", userName);
-                participant.sendMessage(new TextMessage(gson.toJson(newParticipantMessage)));
-            }
-        }
-
-        // 새 참가자에게 기존 참가자들 알림
-        for (UserSession participant : room.getParticipants().values()) {
-            if (!participant.getUserName().equals(userName)) {
-                JsonObject existingParticipantMessage = new JsonObject();
-                existingParticipantMessage.addProperty("type", "existingParticipant");
-                existingParticipantMessage.addProperty("name", participant.getUserName());
-                session.sendMessage(new TextMessage(gson.toJson(existingParticipantMessage)));
-            }
-        }
 
         // 방 참가 완료 응답
         JsonObject joinedResponse = new JsonObject();
         joinedResponse.addProperty("type", "joinedRoom");
         joinedResponse.addProperty("room", roomCode);
         joinedResponse.addProperty("userName", userName); // 실제 사용자 이름 추가
+        joinedResponse.addProperty("userId", userId);
+        joinedResponse.addProperty("connectionMode", user.getMode()); // 접속 방식 추가
         session.sendMessage(new TextMessage(gson.toJson(joinedResponse)));
 
         System.out.println(userName + "이 " + roomCode + " 방에 입장했습니다.");
     }
 
     private void publishVideo(WebSocketSession session, JsonObject jsonMessage) throws Exception {
-        UserSession user = userSessionService.getUserSession(session.getId());
-        if (user == null || user.getRoomCode() == null) return;
+        UserSession user = (UserSession) userSessionService.getUserSession(session.getId());
+        if(user == null || user.getRoomCode() == null) return;
 
         String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
         Room room = roomSessionService.getRoom(user.getRoomCode());
+
         if (room == null) {
             System.err.println("방을 찾을 수 없음: " + user.getRoomCode());
             return;
@@ -188,6 +187,10 @@ public class SignalingHandler extends TextWebSocketHandler {
                     System.err.println("ICE 후보 전송 오류: " + e.getMessage());
                 }
             });
+            // WebRtcEndpoint와 HubPort 연결 (핵심 차이점!)
+            if(user.getMode().equals("MCU")) {
+                outgoingEndpoint.connect(user.getHubPort());
+            }
 
             String sdpAnswer = outgoingEndpoint.processOffer(sdpOffer);
             outgoingEndpoint.gatherCandidates();
@@ -197,7 +200,7 @@ public class SignalingHandler extends TextWebSocketHandler {
             response.addProperty("type", "publishVideoAnswer");
             response.addProperty("sdpAnswer", sdpAnswer);
 
-            session.sendMessage(new TextMessage(gson.toJson(response)));
+            user.getWebSocketSession().sendMessage(new TextMessage(gson.toJson(response)));
 
             // 비디오 게시 완료 후 다른 참가자들에게 즉시 알림
             notifyVideoAvailable(user, room);
@@ -220,7 +223,7 @@ public class SignalingHandler extends TextWebSocketHandler {
     // 비디오 사용 가능 알림 즉시 전송
     private void notifyVideoAvailable(UserSession publisher, Room room) throws Exception {
         for (UserSession participant : room.getParticipants().values()) {
-            if (!participant.getUserName().equals(publisher.getUserName())) {
+            if (!participant.getSessionId().equals(publisher.getSessionId())) {
                 JsonObject videoAvailableMessage = new JsonObject();
                 videoAvailableMessage.addProperty("type", "videoAvailable");
                 videoAvailableMessage.addProperty("name", publisher.getUserName());
@@ -238,6 +241,77 @@ public class SignalingHandler extends TextWebSocketHandler {
             System.err.println("receiveVideoFrom: 사용자 세션 또는 방이 null");
             return;
         }
+
+        // 🔥 핵심: 모드에 따라 분기 처리
+        if ("SFU".equals(user.getMode())) {
+            handleSFUReceiveVideo(user, jsonMessage);
+        } else {
+            handleMCUReceiveVideo(user, jsonMessage);
+        }
+
+    }
+
+    private void handleMCUReceiveVideo(UserSession user, JsonObject jsonMessage) throws Exception {
+        String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
+        Room room = roomSessionService.getRoom(user.getRoomCode());
+
+        System.out.println("=== MCU receiveVideoFrom 디버그 ===");
+        System.out.println("수신자: " + user.getUserName());
+        System.out.println("방: " + user.getRoomCode());
+        System.out.println("모드: MCU (Composite 스트림 수신)");
+
+        try {
+            System.out.println("MCU WebRtcEndpoint 생성 시작");
+            // MCU: Composite에서 믹싱된 스트림을 받음
+            WebRtcEndpoint incomingEndpoint = new WebRtcEndpoint.Builder(room.getPipeline()).build();
+            user.getIncomingMedia().put("composite", incomingEndpoint);
+            System.out.println("MCU incomingEndpoint 생성 완료");
+            // Composite 출력용 HubPort 생성
+            HubPort compositeOutputPort = new HubPort.Builder(room.getComposite()).build();
+
+            // Composite → 수신자로 연결 (개별 발신자가 아님!)
+            compositeOutputPort.connect(incomingEndpoint);
+
+            // ICE 후보 리스너
+            incomingEndpoint.addIceCandidateFoundListener(event -> {
+                try {
+                    if (user.getWebSocketSession().isOpen()) {
+                        JsonObject iceCandidateMessage = new JsonObject();
+                        iceCandidateMessage.addProperty("type", "iceCandidate");
+                        iceCandidateMessage.addProperty("name", "composite");
+                        iceCandidateMessage.add("candidate", gson.toJsonTree(event.getCandidate()));
+                        user.sendMessage(new TextMessage(gson.toJson(iceCandidateMessage)));
+                    }
+                } catch (Exception e) {
+                    System.err.println("MCU ICE 후보 전송 오류: " + e.getMessage());
+                }
+            });
+
+            // SDP 처리
+            String sdpAnswer = incomingEndpoint.processOffer(sdpOffer);
+            incomingEndpoint.gatherCandidates();
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "receiveVideoAnswer");
+            response.addProperty("name", "composite");
+            response.addProperty("sdpAnswer", sdpAnswer);
+
+            user.getWebSocketSession().sendMessage(new TextMessage(gson.toJson(response)));
+
+            System.out.println(user.getUserName() + "이 MCU 믹싱된 스트림을 수신합니다.");
+            System.out.println("=== MCU receiveVideoFrom 완료 ===");
+
+        } catch (Exception e) {
+            System.err.println("MCU 비디오 수신 설정 오류: " + e.getMessage());
+            JsonObject errorMessage = new JsonObject();
+            errorMessage.addProperty("type", "error");
+            errorMessage.addProperty("message", "MCU 비디오 수신 설정 오류: " + e.getMessage());
+            user.getWebSocketSession().sendMessage(new TextMessage(gson.toJson(errorMessage)));
+            e.printStackTrace();
+        }
+    }
+
+    private void handleSFUReceiveVideo(UserSession user, JsonObject jsonMessage) throws Exception {
 
         String senderName = jsonMessage.get("sender").getAsString();
         String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
@@ -264,7 +338,7 @@ public class SignalingHandler extends TextWebSocketHandler {
             JsonObject videoNotReadyMessage = new JsonObject();
             videoNotReadyMessage.addProperty("type", "videoNotReady");
             videoNotReadyMessage.addProperty("name", senderName);
-            session.sendMessage(new TextMessage(gson.toJson(videoNotReadyMessage)));
+            user.getWebSocketSession().sendMessage(new TextMessage(gson.toJson(videoNotReadyMessage)));
             return;
         }
 
@@ -274,7 +348,7 @@ public class SignalingHandler extends TextWebSocketHandler {
             JsonObject videoNotReadyMessage = new JsonObject();
             videoNotReadyMessage.addProperty("type", "videoNotReady");
             videoNotReadyMessage.addProperty("name", senderName);
-            session.sendMessage(new TextMessage(gson.toJson(videoNotReadyMessage)));
+            user.getWebSocketSession().sendMessage(new TextMessage(gson.toJson(videoNotReadyMessage)));
             return;
         }
 
@@ -311,17 +385,17 @@ public class SignalingHandler extends TextWebSocketHandler {
             incomingEndpoint.gatherCandidates();
             System.out.println("gatherCandidates 완료");
 
-            // ⭐ 핵심: Gson을 사용하여 안전하게 JSON 생성
+            //  Gson을 사용하여 안전하게 JSON 생성
             JsonObject response = new JsonObject();
             response.addProperty("type", "receiveVideoAnswer");
             response.addProperty("name", senderName);
-            response.addProperty("sdpAnswer", sdpAnswer); // Gson이 자동으로 이스케이프 처리
-
             String responseJson = gson.toJson(response);
 
             System.out.println("receiveVideoAnswer 전송 완료 to " + user.getUserName() + " for " + senderName);
 
-            session.sendMessage(new TextMessage(responseJson));
+            user.getWebSocketSession().sendMessage(new TextMessage(responseJson));
+            response.addProperty("sdpAnswer", sdpAnswer); // Gson이 자동으로 이스케이프 처리
+
 
             System.out.println(user.getUserName() + "이 " + senderName + "의 비디오를 수신합니다.");
             System.out.println("=== receiveVideoFrom 완료 ===");
@@ -334,7 +408,7 @@ public class SignalingHandler extends TextWebSocketHandler {
             JsonObject errorMessage = new JsonObject();
             errorMessage.addProperty("type", "error");
             errorMessage.addProperty("message", "비디오 수신 설정 오류: " + e.getMessage());
-            session.sendMessage(new TextMessage(gson.toJson(errorMessage)));
+            user.getWebSocketSession().sendMessage(new TextMessage(gson.toJson(errorMessage)));
         }
     }
 
@@ -356,13 +430,24 @@ public class SignalingHandler extends TextWebSocketHandler {
             );
 
             if (user.getUserName().equals(senderName)) {
+                // 송신용 ICE 후보 (SFU/MCU 동일)
                 if (user.getOutgoingMedia() != null) {
                     user.getOutgoingMedia().addIceCandidate(candidate);
                 }
             } else {
-                WebRtcEndpoint incomingEndpoint = user.getIncomingMedia().get(senderName);
-                if (incomingEndpoint != null) {
-                    incomingEndpoint.addIceCandidate(candidate);
+                //수신용 ICE 후보 - SFU/MCU 분기 처리
+                if ("SFU".equals(user.getMode())) {
+                    // SFU: 개별 발신자별 엔드포인트
+                    WebRtcEndpoint incomingEndpoint = user.getIncomingMedia().get(senderName);
+                    if (incomingEndpoint != null) {
+                        incomingEndpoint.addIceCandidate(candidate);
+                    }
+                } else {
+                    // MCU: composite 엔드포인트만 사용
+                    WebRtcEndpoint incomingEndpoint = user.getIncomingMedia().get("composite");
+                    if (incomingEndpoint != null) {
+                        incomingEndpoint.addIceCandidate(candidate);
+                    }
                 }
             }
         } catch (Exception e) {
