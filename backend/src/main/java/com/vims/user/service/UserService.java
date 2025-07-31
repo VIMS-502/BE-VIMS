@@ -85,7 +85,27 @@ public class UserService implements UserDetailsService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .profileImageUrl(user.getProfileImageUrl())
+                .role(user.getRole())
+                .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    // 외부에서 사용할 수 있도록 public 메서드 추가
+    public UserDto getUserDto(User user) {
+        return convertToDto(user);
+    }
+
+    // userId로 UserDto 조회
+    public UserDto getUserDtoById(Long userId) {
+        User user = findById(userId);
+        return convertToDto(user);
+    }
+
+    // email로 UserDto 조회
+    public UserDto getUserDtoByEmail(String email) {
+        User user = findByEmail(email);
+        return convertToDto(user);
     }
 
 
@@ -145,7 +165,7 @@ public class UserService implements UserDetailsService {
         log.info("유저 아이디 : {}", userId);
     }
     
-    //password확인후, 유저 삭제
+    //password 확인후, 유저 삭제
     @Transactional
     public void deleteUserWithPasswordCheck(Long userId, String rawPassword) {
         log.info("[회원탈퇴] 요청 userId: {}", userId);

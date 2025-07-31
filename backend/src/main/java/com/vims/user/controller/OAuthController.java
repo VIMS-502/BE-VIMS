@@ -1,16 +1,16 @@
 package com.vims.user.controller;
-import com.vims.user.dto.UserDto;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.*;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vims.user.dto.UserDto;
+import com.vims.user.entity.User;
 import com.vims.user.service.UserService;
-import java.util.Collections;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 @RestController
 @RequestMapping("/api/oauth")
@@ -80,13 +80,14 @@ public class OAuthController {
                 email, username, "GOOGLE", oauthId, profileImageUrl
             );
 
-            // JWT를 프론트에 반환
-            return ResponseEntity.ok(Collections.singletonMap("token", jwt));
+            // 서비스에서 UserDto 조회
+            UserDto userDto = userService.getUserDtoByEmail(email);
+
+            return ResponseEntity.ok(userDto);
 
         } catch (Exception e) {
             log.error("구글 로그인 실패", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-
 }
