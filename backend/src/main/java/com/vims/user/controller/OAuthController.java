@@ -12,6 +12,9 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/oauth")
 @RequiredArgsConstructor
@@ -39,10 +42,10 @@ public class OAuthController {
 
             String tokenRequestBody =
                     "code=" + code +
-                    "&client_id=" + googleClientId +
-                    "&client_secret=" + googleClientSecret +
-                    "&redirect_uri=" + googleRedirectUri +
-                    "&grant_type=authorization_code";
+                            "&client_id=" + googleClientId +
+                            "&client_secret=" + googleClientSecret +
+                            "&redirect_uri=" + googleRedirectUri +
+                            "&grant_type=authorization_code";
 
             HttpEntity<String> tokenRequest = new HttpEntity<>(tokenRequestBody, headers);
 
@@ -77,13 +80,18 @@ public class OAuthController {
 
             // 회원가입/로그인 + JWT 발급
             String jwt = userService.oauthLoginOrSignup(
-                email, username, "GOOGLE", oauthId, profileImageUrl
+                    email, username, "GOOGLE", oauthId, profileImageUrl
             );
 
             // 서비스에서 UserDto 조회
             UserDto userDto = userService.getUserDtoByEmail(email);
 
-            return ResponseEntity.ok(userDto);
+            // 🚀 토큰과 사용자 정보를 모두 포함하는 응답 생성
+            Map<String, Object> response = new HashMap<>();
+            response.put("accessToken", jwt);  // 프론트엔드에서 기대하는 필드명
+            response.put("user", userDto);     // 사용자 정보
+
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             log.error("구글 로그인 실패", e);

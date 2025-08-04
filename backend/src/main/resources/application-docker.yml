@@ -127,6 +127,6 @@ google:
     id: "${GOOGLE_CLIENT_ID}" # 구글 클라우드 콘솔에서 발급받은 client_id
     secret: "${GOOGLE_CLIENT_SECRET}"
   redirect:
-    uri: "http://localhost:8080/api/oauth/google/login" # 리다이렉트 URI (백엔드 엔드포인트와 일치)
+    uri: "http://localhost:5173/oauth/google/callback" # 리다이렉트 URI (백엔드 엔드포인트와 일치)
 
 
